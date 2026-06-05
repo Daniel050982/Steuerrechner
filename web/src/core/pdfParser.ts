@@ -119,64 +119,43 @@ export function parseBank(text: string): BankErgebnis {
   const bankName = erkenneBankname(text);
   const daten: Partial<BankEintrag> = {};
 
-  // 1. Finde alle Zeile-Nummern im Dokument (auch "ile" wegen pdf.js Artefakte)
+  // Strategie-Auswahl: Sind die Beträge nah an den Zeile-Refs (Consors/Scalable)?
+  // Oder in einem separaten Block (Comdirect)?
   const zeileNummern = findZeileNummern(text);
+  const proximityMap = buildProximityMap(text);
+  const inlineMap = parseInlineZeileAmounts(text);
 
-  // 2. Finde den Beträge-Block (größter Cluster aufeinanderfolgender EUR-Beträge)
-  const amountsBlock = findAmountsBlock(text);
+  let zeileMap: Map<number, number>;
 
-  // 3. Sortiere gefundene Zeile-Nummern in Standard-KAP-Reihenfolge
-  const sortedZeilen = [...zeileNummern].sort((a, b) => {
-    const ia = KAP_ZEILEN_ORDER.indexOf(a);
-    const ib = KAP_ZEILEN_ORDER.indexOf(b);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-  });
+  // Plausibilitätscheck: Kapitalerträge (Zeile 7) sollte >= KapESt (Zeile 37) sein
+  const proxPlausibel = proximityMap.size >= 3 &&
+    (proximityMap.get(7) ?? 0) >= (proximityMap.get(37) ?? 0);
 
-  // 4. Zähle Zeile-39-Vorkommen (Kirchensteuer hat oft 2 Zeilen)
-  const zeile39Count = countZeile39(text);
-
-  // 5. Baue die Zuordnungsliste: Zeile-Nr → Position im Block
-  const mapping: number[] = [];
-  for (const z of sortedZeilen) {
-    mapping.push(z);
-    if (z === 39 && zeile39Count > 1) mapping.push(39); // 2. Kirchensteuer
-  }
-
-  // 6. Ordne Beträge zu
-  const zeileMap = new Map<number, number>();
-  for (let i = 0; i < mapping.length && i < amountsBlock.length; i++) {
-    const z = mapping[i];
-    // Nur den ERSTEN Wert pro Zeile speichern (bei Zeile 39 den ersten)
-    if (!zeileMap.has(z)) {
-      zeileMap.set(z, amountsBlock[i]);
-    }
-  }
-
-  // 7. Falls Block-Zuordnung nichts ergibt, versuche Inline-Format (Postbank: "37 61,74")
-  if (zeileMap.size === 0) {
-    const inlineMap = parseInlineZeileAmounts(text);
-    if (inlineMap.size > 0) {
-      daten.kapitalertraege = inlineMap.get(7) ?? 0;
-      daten.sparer_pauschbetrag = inlineMap.get(16) ?? 0;
-      daten.kapitalertragsteuer = inlineMap.get(37) ?? 0;
-      daten.soli_kapital = inlineMap.get(38) ?? 0;
-      daten.kirchensteuer = inlineMap.get(39) ?? 0;
-    } else {
-      // Letzter Fallback: Nähe-basiert
-      daten.kapitalertraege = amountNear(text, /apitalertr[äa]ge/i, 500);
-      daten.sparer_pauschbetrag = amountNear(text, /Sparer[- ]?Pauschbetrag/i, 500);
-      daten.kapitalertragsteuer = amountNear(text, /apitalertragsteuer/i, 500);
-      daten.soli_kapital = amountNear(text, /olidarit[äa]tszuschlag/i, 500);
-      daten.kirchensteuer = amountNear(text, /irchensteuer/i, 500) || 0;
-    }
+  if (proxPlausibel) {
+    // Strategie A: Beträge stehen nah an den Zeile-Refs (Consors, Scalable)
+    zeileMap = proximityMap;
+  } else if (zeileNummern.size >= 3) {
+    // Strategie B: Beträge in separatem Block (Comdirect)
+    zeileMap = buildBlockMap(text, zeileNummern);
+  } else if (inlineMap.size >= 2) {
+    // Strategie C: Inline "37 61,74" Format (Postbank)
+    zeileMap = inlineMap;
   } else {
-    daten.kapitalertraege = zeileMap.get(7) ?? 0;
-    daten.sparer_pauschbetrag = zeileMap.get(16) ?? zeileMap.get(17) ?? 0;
-    daten.kapitalertragsteuer = zeileMap.get(37) ?? 0;
-    daten.soli_kapital = zeileMap.get(38) ?? 0;
-    daten.kirchensteuer = zeileMap.get(39) ?? 0;
-    daten.invstg_56 = zeileMap.get(10) ?? 0;
+    // Strategie D: Nähe-basiert (Fallback)
+    daten.kapitalertraege = amountNear(text, /apitalertr[äa]ge/i, 500);
+    daten.sparer_pauschbetrag = amountNear(text, /Sparer[- ]?Pauschbetrag/i, 500);
+    daten.kapitalertragsteuer = amountNear(text, /apitalertragsteuer/i, 500);
+    daten.soli_kapital = amountNear(text, /olidarit[äa]tszuschlag/i, 500);
+    daten.kirchensteuer = amountNear(text, /irchensteuer/i, 500) || 0;
+    return { typ: 'bank', jahr, bankName, daten };
   }
+
+  daten.kapitalertraege = zeileMap.get(7) ?? 0;
+  daten.sparer_pauschbetrag = zeileMap.get(16) ?? zeileMap.get(17) ?? 0;
+  daten.kapitalertragsteuer = zeileMap.get(37) ?? 0;
+  daten.soli_kapital = zeileMap.get(38) ?? 0;
+  daten.kirchensteuer = zeileMap.get(39) ?? 0;
+  daten.invstg_56 = zeileMap.get(10) ?? 0;
 
   return { typ: 'bank', jahr, bankName, daten };
 }
@@ -201,7 +180,70 @@ function findZeileNummern(text: string): Set<number> {
 }
 
 /**
- * Postbank/Deutsche-Bank-Format: Zeilen-Nummern und Beträge direkt nebeneinander.
+ * Strategie A: Für jede "Zeile X Anlage KAP"-Referenz den nächsten EUR-Betrag
+ * innerhalb von 120 Zeichen finden. Funktioniert für Consors, Scalable, BBBank
+ * wo Beträge inline neben den Labels stehen.
+ */
+function buildProximityMap(text: string): Map<number, number> {
+  const result = new Map<number, number>();
+  const amounts = findAllAmounts(text);
+  // Matche alle Zeile-Referenzen
+  const re = /(?:Ze)?ile\s+(\d{1,2})\s+(?:oder\s+\d{1,2}\s+)?.*?(?:Anlage\s+KAP|nlage\s+KAP)/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const nr = parseInt(m[1], 10);
+    if (nr === 19 || result.has(nr)) continue;
+
+    const refStart = m.index;
+    const refEnd = m.index + m[0].length;
+
+    // Suche den LETZTEN Betrag der VOR der Zeile-Referenz steht.
+    // Bank-Bescheinigungen haben immer: [Betrag] ... [Label] ... Zeile X Anlage KAP
+    // Der Betrag der zu Zeile X gehört ist der letzte Betrag VOR "Zeile X".
+    let best: { value: number; index: number } | null = null;
+    for (const a of amounts) {
+      const end = a.index + a.raw.length + 3;
+      if (end <= refStart && (refStart - end) <= 300) {
+        // Der letzte (= nächste am Ref) Betrag VOR der Zeile-Ref gewinnt
+        if (!best || a.index > best.index) {
+          best = { value: a.value, index: a.index };
+        }
+      }
+    }
+
+    if (best) result.set(nr, best.value);
+  }
+  return result;
+}
+
+/**
+ * Strategie B: Beträge-Block + Zeile-Nummern sequentiell zuordnen.
+ * Für Comdirect wo Labels und Beträge in getrennten Spalten stehen.
+ */
+function buildBlockMap(text: string, zeileNummern: Set<number>): Map<number, number> {
+  const amountsBlock = findAmountsBlock(text);
+  const sortedZeilen = [...zeileNummern].sort((a, b) => {
+    const ia = KAP_ZEILEN_ORDER.indexOf(a);
+    const ib = KAP_ZEILEN_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+  const zeile39Count = countZeile39(text);
+  const mapping: number[] = [];
+  for (const z of sortedZeilen) {
+    mapping.push(z);
+    if (z === 39 && zeile39Count > 1) mapping.push(39);
+  }
+
+  const result = new Map<number, number>();
+  for (let i = 0; i < mapping.length && i < amountsBlock.length; i++) {
+    if (!result.has(mapping[i])) result.set(mapping[i], amountsBlock[i]);
+  }
+  return result;
+}
+
+/**
+ * Strategie C: Postbank/Deutsche-Bank-Format: Zeilen-Nummern und Beträge direkt nebeneinander.
  * Format: "7 246,94" oder "37 61,74" (Zeilennummer + Betrag, ohne "Zeile" Prefix)
  */
 function parseInlineZeileAmounts(text: string): Map<number, number> {
