@@ -1,11 +1,10 @@
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calculator } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Calculator, Home } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { ErgebnisOverview } from '../components/dashboard/ErgebnisOverview';
 import { useSteuer } from '../store/SteuerContext';
 
 export default function ErgebnisPage() {
-  const navigate = useNavigate();
   const { state } = useSteuer();
 
   return (
@@ -16,13 +15,22 @@ export default function ErgebnisPage() {
             <Calculator className="w-5 h-5 text-emerald-400" />
             <h1 className="text-lg font-bold text-slate-100">Ergebnis {state.eingabe.jahr}</h1>
           </div>
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Zurück
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/rechner"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Eingaben
+            </Link>
+            <Link
+              to="/"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+            >
+              <Home className="w-4 h-4" />
+              Übersicht
+            </Link>
+          </div>
         </div>
       </AppHeader>
 

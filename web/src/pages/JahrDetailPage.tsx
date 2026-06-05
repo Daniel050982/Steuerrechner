@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Calculator } from 'lucide-react';
+import { ArrowLeft, Calculator, Upload } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { Card } from '../components/ui/Card';
 import { EditableField } from '../components/ui/EditableField';
+import { PdfUpload } from '../components/PdfUpload';
 import { useDaten } from '../store/DatenContext';
 import { euro, prozent } from '../utils/format';
 import { TOOLTIPS_STEUERDATEN as TS, TOOLTIPS_ERGEBNIS as TE } from '../data/tooltips';
@@ -50,6 +52,7 @@ export default function JahrDetailPage() {
     );
   }
 
+  const [showUpload, setShowUpload] = useState(false);
   const erstattung = e.erstattung_nachzahlung > 0;
   const sd = (field: keyof typeof d, value: number) => updateSteuerdaten(jahr, { [field]: value });
   const se = (field: keyof typeof e, value: number) => updateErgebnis(jahr, { [field]: value });
@@ -63,6 +66,13 @@ export default function JahrDetailPage() {
             <h1 className="text-lg font-bold text-slate-100">Steuerjahr {jahr}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+            >
+              <Upload className="w-4 h-4" />
+              PDF Import
+            </button>
             <Link
               to={`/banken?jahr=${jahr}`}
               className="px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
@@ -214,6 +224,8 @@ export default function JahrDetailPage() {
           </div>
         </div>
       </main>
+
+      {showUpload && <PdfUpload onClose={() => setShowUpload(false)} />}
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { Calculator } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Calculator, ArrowLeft } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { SelectInput } from '../components/ui/SelectInput';
 import { Toggle } from '../components/ui/Toggle';
@@ -43,6 +43,13 @@ export default function RechnerPage() {
               checked={state.eingabe.verheiratet}
               onChange={(v) => setField('verheiratet', v)}
             />
+            <Link
+              to="/"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Übersicht
+            </Link>
           </div>
         </div>
       </AppHeader>

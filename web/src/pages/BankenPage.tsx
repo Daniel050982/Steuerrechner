@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Landmark, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Landmark, Plus, Trash2, Upload } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { Card } from '../components/ui/Card';
 import { EditableField } from '../components/ui/EditableField';
+import { PdfUpload } from '../components/PdfUpload';
 import { useDaten } from '../store/DatenContext';
 import type { BankEintrag } from '../data/banken';
 import { euro } from '../utils/format';
@@ -122,6 +123,7 @@ export default function BankenPage() {
     .reduce((s, { eintrag }) => s + eintrag.estg_22, 0);
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [newBank, setNewBank] = useState('');
   const [newTyp, setNewTyp] = useState<BankEintrag['typ']>('Einzel');
 
@@ -150,6 +152,13 @@ export default function BankenPage() {
                 <option key={j} value={j}>{j}</option>
               ))}
             </select>
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+            >
+              <Upload className="w-4 h-4" />
+              PDF Import
+            </button>
             <button
               onClick={() => setShowAddForm(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-white transition whitespace-nowrap"
@@ -255,6 +264,8 @@ export default function BankenPage() {
           </Card>
         )}
       </main>
+
+      {showUpload && <PdfUpload onClose={() => setShowUpload(false)} />}
     </div>
   );
 }
