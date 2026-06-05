@@ -166,48 +166,93 @@ export function parseBank(text: string): BankErgebnis {
   const bankName = erkenneBankname(text);
   const daten: Partial<BankEintrag> = {};
 
-  // Strategie: Zeile-basiertes Mapping (Anlage KAP)
-  // Jede Bank verwendet "Zeile X Anlage KAP" als Referenz.
-  // Wir sammeln alle "Zeile XX" → nächster Betrag Paare.
-  const zeileMap = new Map<number, number>();
-  const zeileRe = /Zeile\s*(\d{1,2})\s*(?:oder\s*\d{1,2}\s*)?(?:Anlage\s*KAP)?/gi;
+  // Strategie 1: Sequentielle Zuordnung Zeile-Ref → Betrag
+  // Bei Tabellen-PDFs (Comdirect, Consors, Scalable) stehen Labels links
+  // und Beträge rechts. pdf.js extrahiert erst alle Labels, dann alle Beträge.
+  // → Die N-te Zeile-Referenz gehört zum N-ten Betrag.
+  const zeileMap = sequentialZeileMapping(text);
+
+  // Strategie 2: Falls sequentiell nichts findet, Nähe-basiert als Fallback
+  if (zeileMap.size === 0) {
+    daten.kapitalertraege = amountNear(text, /H[öo]he der Kapitalertr[äa]ge/i, 500);
+    daten.sparer_pauschbetrag = amountNear(text, /Sparer[- ]?Pauschbetrag/i, 500);
+    daten.kapitalertragsteuer = amountNear(text, /Kapitalertragsteuer(?!\s*zur)/i, 500);
+    daten.soli_kapital = amountNear(text, /Solidarit[äa]tszuschlag/i, 500);
+    daten.kirchensteuer = amountNear(text, /Kirchensteuer/i, 500) || 0;
+  } else {
+    daten.kapitalertraege = zeileMap.get(7) ?? 0;
+    daten.sparer_pauschbetrag = zeileMap.get(16) ?? zeileMap.get(17) ?? 0;
+    daten.kapitalertragsteuer = zeileMap.get(37) ?? 0;
+    daten.soli_kapital = zeileMap.get(38) ?? 0;
+    daten.kirchensteuer = zeileMap.get(39) ?? 0;
+    daten.invstg_56 = zeileMap.get(10) ?? 0;
+  }
+
+  return { typ: 'bank', jahr, bankName, daten };
+}
+
+/**
+ * Sammelt alle "Zeile XX" Referenzen und alle EUR-Beträge in Dokumentreihenfolge,
+ * dann ordnet sie sequentiell zu: 1. Zeile → 1. Betrag, 2. Zeile → 2. Betrag, etc.
+ *
+ * Das funktioniert, weil bei Tabellen-PDFs die Zeile-Refs und Beträge in
+ * derselben logischen Reihenfolge stehen, auch wenn sie im extrahierten
+ * Text weit voneinander entfernt sind.
+ */
+function sequentialZeileMapping(text: string): Map<number, number> {
+  // 1. Sammle alle Zeile-Referenzen in Reihenfolge (nur eindeutige, erste Vorkommen)
+  const zeileRefs: { nr: number; index: number }[] = [];
+  const zeileRe = /Zeile\s*(\d{1,2})\s*(?:oder\s*(\d{1,2})\s*)?(?:Anlage\s*KAP)?/gi;
+  const seenZeilen = new Set<number>();
   let zm;
   while ((zm = zeileRe.exec(text)) !== null) {
-    const zeileNr = parseInt(zm[1], 10);
-    // Finde den nächsten EUR-Betrag nach dieser Zeile-Referenz
-    const amounts = findAllAmounts(text);
-    let bestAmount: number | null = null;
-    let bestDist = Infinity;
-    const zeileEnd = zm.index + zm[0].length;
-
-    for (const a of amounts) {
-      // Betrag muss NACH der Zeile-Referenz kommen (oder max 60 Zeichen davor)
-      const distAfter = a.index - zeileEnd;
-      const distBefore = zm.index - (a.index + a.raw.length);
-
-      if (distAfter >= 0 && distAfter < 150 && distAfter < bestDist) {
-        bestDist = distAfter;
-        bestAmount = a.value;
-      } else if (distBefore >= 0 && distBefore < 60 && distBefore < bestDist) {
-        bestDist = distBefore;
-        bestAmount = a.value;
-      }
-    }
-
-    if (bestAmount !== null && !zeileMap.has(zeileNr)) {
-      zeileMap.set(zeileNr, bestAmount);
+    const nr = parseInt(zm[1], 10);
+    // "Zeile 16 oder 17" → nur als 16 speichern (mit Alias 17)
+    if (!seenZeilen.has(nr)) {
+      seenZeilen.add(nr);
+      if (zm[2]) seenZeilen.add(parseInt(zm[2], 10));
+      zeileRefs.push({ nr, index: zm.index });
     }
   }
 
-  // Mapping: Zeile → Feld
-  daten.kapitalertraege = zeileMap.get(7) ?? amountNear(text, /H[öo]he der Kapitalertr[äa]ge/i);
-  daten.sparer_pauschbetrag = zeileMap.get(16) ?? zeileMap.get(17) ?? amountNear(text, /Sparer[- ]?Pauschbetrag/i);
-  daten.kapitalertragsteuer = zeileMap.get(37) ?? 0;
-  daten.soli_kapital = zeileMap.get(38) ?? 0;
-  daten.kirchensteuer = zeileMap.get(39) ?? 0;
-  daten.invstg_56 = zeileMap.get(10) ?? 0;
+  if (zeileRefs.length === 0) return new Map();
 
-  return { typ: 'bank', jahr, bankName, daten };
+  // 2. Sammle alle EUR-Beträge die NACH dem Steuerbescheinigung-Block stehen
+  // (= die Werte-Spalte, nicht Beträge in Gesetzestexten)
+  const amounts = findAllAmounts(text);
+
+  // 3. Versuche zuerst: Jede Zeile-Ref hat den Betrag direkt daneben (< 100 Zeichen)
+  const nearMap = new Map<number, number>();
+  for (const zr of zeileRefs) {
+    for (const a of amounts) {
+      const dist = a.index - (zr.index + 20); // approximate end of "Zeile XX"
+      if (dist >= -60 && dist <= 100) {
+        nearMap.set(zr.nr, a.value);
+        break;
+      }
+    }
+  }
+
+  // Wenn die meisten Zeilen einen Nahbetrag haben, nutze die Nähe-Strategie
+  if (nearMap.size >= zeileRefs.length * 0.6) {
+    return nearMap;
+  }
+
+  // 4. Fallback: Sequentielle Zuordnung
+  // Finde den Punkt im Text, ab dem die Beträge-Spalte beginnt
+  // (= nach der letzten Zeile-Referenz)
+  const lastZeileEnd = Math.max(...zeileRefs.map((z) => z.index)) + 30;
+  const valueAmounts = amounts.filter((a) => a.index >= lastZeileEnd);
+
+  const result = new Map<number, number>();
+  for (let i = 0; i < zeileRefs.length && i < valueAmounts.length; i++) {
+    const nr = zeileRefs[i].nr;
+    result.set(nr, valueAmounts[i].value);
+    // Zeile "16 oder 17": auch unter 17 speichern
+    if (nr === 16) result.set(17, valueAmounts[i].value);
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
