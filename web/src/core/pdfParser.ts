@@ -344,42 +344,70 @@ export function parseLStB(text: string): LStBErgebnis {
   const amounts = findAllAmounts(text);
   if (amounts.length === 0) return { typ: 'lstb', jahr, daten };
 
-  // --- Hauptfelder (3=Brutto, 4=LSt, 5=Soli) ---
-  // Die ersten zwei großen Beträge im Dokument sind fast immer Brutto und LSt.
-  // (In der LStB stehen sie oben links, pdf.js extrahiert sie zuerst.)
-  const mainAmounts = amounts.filter(a => a.value > 100);
-  if (mainAmounts.length >= 1) daten.bruttogehalt = mainAmounts[0].value;
-  if (mainAmounts.length >= 2) daten.lohnsteuer = mainAmounts[1].value;
-  daten.soli_lohn = 0; // Seit 2021 für die meisten 0 → sicher als Default
+  // --- Erster Block: Hauptfelder ---
+  // Die ersten Beträge im Dokument sind Brutto, LSt und weitere Felder.
+  const firstBlock = findAmountsBlock(text);
+  const mainAmounts = firstBlock.filter(v => v > 100);
+  if (mainAmounts.length >= 1) daten.bruttogehalt = mainAmounts[0];
+  if (mainAmounts.length >= 2) daten.lohnsteuer = mainAmounts[1];
+  daten.soli_lohn = 0;
   daten.kirchensteuer_lohn = 0;
 
-  // --- SV-Felder (22=RV-AG, 23=RV-AN, 25=KV-AN, 26=PV-AN) ---
-  // In der LStB kommen die SV-Beträge als Block. Bei pdf.js-Extraktion
-  // stehen sie oft NACH den SV-Feld-Labels (22./23./25./26./27.)
-  // ODER DAVOR. Wir suchen den Block mit identischen RV-Werten.
-
-  // Strategie: Finde zwei aufeinanderfolgende identische Beträge (= RV AN/AG)
+  // --- SV-Block: Finde RV-Paar (zwei identische Beträge) ---
+  let rvIdx = -1;
   for (let i = 0; i < amounts.length - 1; i++) {
-    const a = amounts[i];
-    const b = amounts[i + 1];
-    if (Math.abs(a.value - b.value) < 0.01 && a.value > 500) {
-      // RV AG und RV AN gefunden
-      daten.rv_ag = a.value;
-      daten.rv_an = b.value;
-      // KV AN ist der nächste Betrag (typisch > 1000)
+    if (Math.abs(amounts[i].value - amounts[i + 1].value) < 0.01 && amounts[i].value > 500) {
+      daten.rv_ag = amounts[i].value;
+      daten.rv_an = amounts[i + 1].value;
       if (i + 2 < amounts.length && amounts[i + 2].value > 500) {
         daten.kv_an_regulaer = amounts[i + 2].value;
       }
+      rvIdx = i;
       break;
     }
   }
 
-  // PV AN: Suche per Label-Nähe (Feld 26)
-  daten.pv_an = amountNear(text, /Pflege-?\s*versicherung/i, 400)
-    || amountNear(text, /26\.\s+Arbeitnehmer/i, 400);
+  // --- PV AN und DBA aus dem ersten Block ---
+  // Nach Brutto und LSt bleiben im ersten Block weitere Beträge übrig.
+  // Diese sind typisch: Feld 16a (DBA), evtl. 17/18, Feld 26 (PV AN).
+  // Identifikation: prüfe ob "DBA" oder "16." im Dokument erwähnt wird.
+  const hasDBA = /DBA|Doppelbesteuerungsabkommen/i.test(text);
+  const remainingFirstBlock = mainAmounts.slice(2); // Nach Brutto + LSt
+  const svValues = new Set([daten.rv_ag, daten.rv_an, daten.kv_an_regulaer].filter(Boolean));
 
-  // Auslandseinkünfte (Feld 16a: steuerfreier Arbeitslohn DBA)
-  daten.auslandseinkuenfte = amountNear(text, /Doppelbesteuerungsabkommen|DBA/i, 400);
+  // Filtere SV-Werte raus (falls im selben Block)
+  const extraValues = remainingFirstBlock.filter(v => !svValues.has(v));
+
+  if (hasDBA && extraValues.length >= 1) {
+    // Erster verbleibender Wert = DBA (Feld 16a kommt im Formular vor Feld 26)
+    daten.auslandseinkuenfte = extraValues[0];
+  }
+
+  // PV AN: der Wert der in der Nähe von "Pflege" oder "26." steht
+  // In der LStB ist PV AN typisch der letzte Wert im ersten Block vor Soli (0)
+  // Schaue nach einem Wert im Bereich 200-3000 der weder Brutto, LSt, RV, KV, noch DBA ist
+  const assignedValues = new Set([
+    daten.bruttogehalt, daten.lohnsteuer,
+    daten.rv_ag, daten.rv_an, daten.kv_an_regulaer,
+    daten.auslandseinkuenfte,
+  ].filter(Boolean));
+
+  // PV AN ist im Formular das letzte Feld der linken Spalte (Feld 26),
+  // also der LETZTE unzugewiesene Wert im ersten Block
+  if (/26\.\s+Arbeitnehmer|Pflege/i.test(text)) {
+    for (let i = firstBlock.length - 1; i >= 0; i--) {
+      const v = firstBlock[i];
+      if (v >= 200 && v <= 5000 && !assignedValues.has(v)) {
+        daten.pv_an = v;
+        break;
+      }
+    }
+  }
+
+  // Fallback: DBA auch ohne ersten Block suchen
+  if (!daten.auslandseinkuenfte) {
+    daten.auslandseinkuenfte = amountNear(text, /DBA|Doppelbesteuerungsabkommen/i, 2000);
+  }
 
   return { typ: 'lstb', jahr, daten };
 }

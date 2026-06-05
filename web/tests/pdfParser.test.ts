@@ -111,6 +111,8 @@ const tests: TestCase[] = [
       rv_an: 5229.45,
       rv_ag: 5229.45,
       kv_an_regulaer: 4793.66,
+      pv_an: 1349.53,
+      auslandseinkuenfte: 1062.63,
     },
     text: `Ausdruck der Elektronischen Lohnsteuerbescheinigung für 2025  Nachstehende Daten wurden an den Data-Service übertragen  92552 Teunz Lindenweg 13 TGW Systems Integration GmbH 56.230,61 8.740,11 1.062,63 1.132,00 1.349,53 0 01.01. - 31.12.2025  1. Bescheinigungszeitraum 2. Zeiträume ohne Anspruch auf Arbeitslohn 3. Bruttoarbeitslohn einschl. Sachbezüge 4. Einbehaltene Lohnsteuer von 3. 5. Einbehaltener Solidaritätszuschlag von 3.  7. Einbehaltene Kirchensteuer des Ehegatten  6. Einbehaltene Kirchensteuer des Arbeitnehmers von 3. 8. In 3. enthaltene Versorgungsbezüge  15. Leistungen die dem Progressionsvorbehalt unterliegen  16. Steuerfreier Arbeitslohn nach  a) Doppelbesteuerungsabkommen (DBA)  26. Arbeitnehmerbeiträge zur sozialen Pflegeversicherung  22. Arbeitgeber- anteil/-zuschuss 23. Arbeitnehmer- anteil 24. Steuerfreie Arbeitgeber- zuschüsse 25. Arbeitnehmerbeiträge zur gesetzlichen Krankenversicherung 27. Arbeitnehmerbeiträge zur Arbeitslosenversicherung  5.229,45 5.229,45 4.793,66 731,02`,
   },
