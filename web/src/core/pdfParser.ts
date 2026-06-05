@@ -164,35 +164,48 @@ export interface BankErgebnis {
 export function parseBank(text: string): BankErgebnis {
   const jahr = findJahr(text);
   const bankName = erkenneBankname(text);
-
   const daten: Partial<BankEintrag> = {};
 
-  // Zeile 7: Höhe der Kapitalerträge
-  daten.kapitalertraege = amountNear(text, /H[öo]he der Kapitalertr[äa]ge/i)
-    || amountNear(text, /Zeile\s*7\b/i);
+  // Strategie: Zeile-basiertes Mapping (Anlage KAP)
+  // Jede Bank verwendet "Zeile X Anlage KAP" als Referenz.
+  // Wir sammeln alle "Zeile XX" → nächster Betrag Paare.
+  const zeileMap = new Map<number, number>();
+  const zeileRe = /Zeile\s*(\d{1,2})\s*(?:oder\s*\d{1,2}\s*)?(?:Anlage\s*KAP)?/gi;
+  let zm;
+  while ((zm = zeileRe.exec(text)) !== null) {
+    const zeileNr = parseInt(zm[1], 10);
+    // Finde den nächsten EUR-Betrag nach dieser Zeile-Referenz
+    const amounts = findAllAmounts(text);
+    let bestAmount: number | null = null;
+    let bestDist = Infinity;
+    const zeileEnd = zm.index + zm[0].length;
 
-  // Zeile 16/17: Sparer-Pauschbetrag
-  daten.sparer_pauschbetrag = amountNear(text, /Sparer[- ]?Pauschbetrag/i)
-    || amountNear(text, /Zeile\s*1[67]\b/i);
+    for (const a of amounts) {
+      // Betrag muss NACH der Zeile-Referenz kommen (oder max 60 Zeichen davor)
+      const distAfter = a.index - zeileEnd;
+      const distBefore = zm.index - (a.index + a.raw.length);
 
-  // Zeile 37: Kapitalertragsteuer
-  daten.kapitalertragsteuer = amountNear(text, /Kapitalertragsteuer\s*(?:Zeile)?\s*(?:37)?/i)
-    || amountNear(text, /Zeile\s*37\b/i);
+      if (distAfter >= 0 && distAfter < 150 && distAfter < bestDist) {
+        bestDist = distAfter;
+        bestAmount = a.value;
+      } else if (distBefore >= 0 && distBefore < 60 && distBefore < bestDist) {
+        bestDist = distBefore;
+        bestAmount = a.value;
+      }
+    }
 
-  // Zeile 38: Solidaritätszuschlag
-  daten.soli_kapital = amountNear(text, /Solidarit[äa]tszuschlag\s*(?:Zeile)?\s*(?:38)?/i)
-    || amountNear(text, /Zeile\s*38\b/i);
+    if (bestAmount !== null && !zeileMap.has(zeileNr)) {
+      zeileMap.set(zeileNr, bestAmount);
+    }
+  }
 
-  // Zeile 39: Kirchensteuer
-  daten.kirchensteuer = amountNear(text, /Kirchensteuer\s*(?:zur)?\s*(?:Kapitalertragsteuer)?/i)
-    || amountNear(text, /Zeile\s*39\b/i)
-    || 0;
-
-  // Zeile 10: §56 InvStG (bestandsgeschützte Alt-Anteile)
-  daten.invstg_56 = amountNear(text, /bestandsgesch[üu]tzt.*?Alt[- ]?Anteile/i)
-    || amountNear(text, /§\s*56\s*Abs\.\s*6/i)
-    || amountNear(text, /Zeile\s*10\b/i)
-    || 0;
+  // Mapping: Zeile → Feld
+  daten.kapitalertraege = zeileMap.get(7) ?? amountNear(text, /H[öo]he der Kapitalertr[äa]ge/i);
+  daten.sparer_pauschbetrag = zeileMap.get(16) ?? zeileMap.get(17) ?? amountNear(text, /Sparer[- ]?Pauschbetrag/i);
+  daten.kapitalertragsteuer = zeileMap.get(37) ?? 0;
+  daten.soli_kapital = zeileMap.get(38) ?? 0;
+  daten.kirchensteuer = zeileMap.get(39) ?? 0;
+  daten.invstg_56 = zeileMap.get(10) ?? 0;
 
   return { typ: 'bank', jahr, bankName, daten };
 }
