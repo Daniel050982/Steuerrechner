@@ -7,6 +7,7 @@ import { EditableField } from '../components/ui/EditableField';
 import { useDaten } from '../store/DatenContext';
 import type { BankEintrag } from '../data/banken';
 import { euro } from '../utils/format';
+import { TOOLTIPS_BANKEN as TB } from '../data/tooltips';
 
 const ALLE_JAHRE_DEFAULT = [2025, 2024, 2023, 2022, 2021, 2020, 2019];
 
@@ -57,14 +58,14 @@ function EditableBankCard({
       <div className="space-y-0">
         {!hatKrypto && (
           <>
-            <EditableField label="Kapitalerträge" value={eintrag.kapitalertraege} onChange={(v) => u('kapitalertraege', v)} />
-            <EditableField label="Sparer-Pauschbetrag" value={eintrag.sparer_pauschbetrag} onChange={(v) => u('sparer_pauschbetrag', v)} />
-            <EditableField label="KapESt" value={eintrag.kapitalertragsteuer} onChange={(v) => u('kapitalertragsteuer', v)} />
+            <EditableField label="Kapitalerträge" value={eintrag.kapitalertraege} onChange={(v) => u('kapitalertraege', v)} tooltip={TB.kapitalertraege} />
+            <EditableField label="Sparer-Pauschbetrag" value={eintrag.sparer_pauschbetrag} onChange={(v) => u('sparer_pauschbetrag', v)} tooltip={TB.sparer_pauschbetrag} />
+            <EditableField label="KapESt" value={eintrag.kapitalertragsteuer} onChange={(v) => u('kapitalertragsteuer', v)} tooltip={TB.kapitalertragsteuer} />
             <EditableField label="Soli" value={eintrag.soli_kapital} onChange={(v) => u('soli_kapital', v)} />
             <EditableField label="Kirchensteuer" value={eintrag.kirchensteuer} onChange={(v) => u('kirchensteuer', v)} />
             {(eintrag.invstg_56 > 0 || eintrag.fiktiv_zugeflossen > 0) && (
               <>
-                <EditableField label="§56 InvStG" value={eintrag.invstg_56} onChange={(v) => u('invstg_56', v)} />
+                <EditableField label="§56 InvStG" value={eintrag.invstg_56} onChange={(v) => u('invstg_56', v)} tooltip={TB.invstg_56} />
                 <EditableField label="Fiktiv zugeflossen" value={eintrag.fiktiv_zugeflossen} onChange={(v) => u('fiktiv_zugeflossen', v)} />
               </>
             )}
@@ -73,9 +74,9 @@ function EditableBankCard({
 
         {hatKrypto && (
           <>
-            <EditableField label="§23 Veräußerung" value={eintrag.estg_23} onChange={(v) => u('estg_23', v)} />
-            <EditableField label="§22 Staking/Airdrops" value={eintrag.estg_22} onChange={(v) => u('estg_22', v)} />
-            <EditableField label="§20 Termingeschäfte" value={eintrag.estg_20} onChange={(v) => u('estg_20', v)} />
+            <EditableField label="§23 Veräußerung" value={eintrag.estg_23} onChange={(v) => u('estg_23', v)} tooltip={TB.estg_23_banken} />
+            <EditableField label="§22 Staking/Airdrops" value={eintrag.estg_22} onChange={(v) => u('estg_22', v)} tooltip={TB.estg_22_banken} />
+            <EditableField label="§20 Termingeschäfte" value={eintrag.estg_20} onChange={(v) => u('estg_20', v)} tooltip={TB.estg_20_banken} />
             <EditableField label="Broker-Verluste" value={eintrag.broker_verluste} onChange={(v) => u('broker_verluste', v)} />
           </>
         )}

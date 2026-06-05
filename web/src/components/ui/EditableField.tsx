@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Pencil } from 'lucide-react';
 import { euro } from '../../utils/format';
+import { InfoTooltip } from './InfoTooltip';
 
 interface EditableFieldProps {
   label: string;
@@ -11,6 +12,7 @@ interface EditableFieldProps {
   indent?: boolean;
   color?: 'green' | 'red' | 'blue';
   readOnly?: boolean;
+  tooltip?: string;
 }
 
 export function EditableField({
@@ -22,6 +24,7 @@ export function EditableField({
   indent,
   color,
   readOnly,
+  tooltip,
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -65,8 +68,9 @@ export function EditableField({
 
   return (
     <div className={`flex items-center justify-between py-1.5 border-b border-slate-700/30 last:border-0 group ${indent ? 'pl-4' : ''}`}>
-      <span className={`text-sm ${bold ? 'font-semibold text-slate-200' : 'text-slate-400'}`}>
+      <span className={`flex items-center gap-1.5 text-sm ${bold ? 'font-semibold text-slate-200' : 'text-slate-400'}`}>
         {label}
+        {tooltip && <InfoTooltip text={tooltip} />}
       </span>
 
       {editing ? (
