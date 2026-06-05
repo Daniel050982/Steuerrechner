@@ -152,13 +152,23 @@ export function parseBank(text: string): BankErgebnis {
     }
   }
 
-  // 7. Falls Block-Zuordnung nichts ergibt, Fallback auf Nähe-basiert
+  // 7. Falls Block-Zuordnung nichts ergibt, versuche Inline-Format (Postbank: "37 61,74")
   if (zeileMap.size === 0) {
-    daten.kapitalertraege = amountNear(text, /apitalertr[äa]ge/i, 500);
-    daten.sparer_pauschbetrag = amountNear(text, /Sparer[- ]?Pauschbetrag/i, 500);
-    daten.kapitalertragsteuer = amountNear(text, /apitalertragsteuer/i, 500);
-    daten.soli_kapital = amountNear(text, /olidarit[äa]tszuschlag/i, 500);
-    daten.kirchensteuer = amountNear(text, /irchensteuer/i, 500) || 0;
+    const inlineMap = parseInlineZeileAmounts(text);
+    if (inlineMap.size > 0) {
+      daten.kapitalertraege = inlineMap.get(7) ?? 0;
+      daten.sparer_pauschbetrag = inlineMap.get(16) ?? 0;
+      daten.kapitalertragsteuer = inlineMap.get(37) ?? 0;
+      daten.soli_kapital = inlineMap.get(38) ?? 0;
+      daten.kirchensteuer = inlineMap.get(39) ?? 0;
+    } else {
+      // Letzter Fallback: Nähe-basiert
+      daten.kapitalertraege = amountNear(text, /apitalertr[äa]ge/i, 500);
+      daten.sparer_pauschbetrag = amountNear(text, /Sparer[- ]?Pauschbetrag/i, 500);
+      daten.kapitalertragsteuer = amountNear(text, /apitalertragsteuer/i, 500);
+      daten.soli_kapital = amountNear(text, /olidarit[äa]tszuschlag/i, 500);
+      daten.kirchensteuer = amountNear(text, /irchensteuer/i, 500) || 0;
+    }
   } else {
     daten.kapitalertraege = zeileMap.get(7) ?? 0;
     daten.sparer_pauschbetrag = zeileMap.get(16) ?? zeileMap.get(17) ?? 0;
@@ -186,6 +196,23 @@ function findZeileNummern(text: string): Set<number> {
     // Zeile 19 ist nur Warnungstext, nicht ein Feld
     if (nr !== 19) result.add(nr);
     // "Zeile 16 oder 17" → nur 16 speichern (ist dasselbe Feld)
+  }
+  return result;
+}
+
+/**
+ * Postbank/Deutsche-Bank-Format: Zeilen-Nummern und Beträge direkt nebeneinander.
+ * Format: "7 246,94" oder "37 61,74" (Zeilennummer + Betrag, ohne "Zeile" Prefix)
+ */
+function parseInlineZeileAmounts(text: string): Map<number, number> {
+  const result = new Map<number, number>();
+  // Matche: Zeilennummer (1-2 Digits) gefolgt von EUR-Betrag
+  const re = /\b(7|8|9|10|11|12|13|14|15|16|37|38|39|40|41|42)\s+(-?[\d.]+,\d{2})\b/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const nr = parseInt(m[1], 10);
+    const val = parseEuro(m[2]);
+    if (!result.has(nr)) result.set(nr, val);
   }
   return result;
 }
