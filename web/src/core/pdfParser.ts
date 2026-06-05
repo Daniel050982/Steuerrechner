@@ -340,14 +340,47 @@ export interface LStBErgebnis {
 export function parseLStB(text: string): LStBErgebnis {
   const jahr = findJahr(text);
   const daten: Partial<HistorischeEingabe> = {};
-  daten.bruttogehalt = amountNear(text, /(?:3\.?\s*)?Bruttoarbeitslohn/i);
-  daten.lohnsteuer = amountNear(text, /(?:4\.?\s*)?(?:Einbehaltene\s+)?Lohnsteuer/i);
-  daten.soli_lohn = amountNear(text, /(?:5\.?\s*)?(?:Einbehaltener?\s+)?Solidarit[äa]t/i);
-  daten.kirchensteuer_lohn = amountNear(text, /(?:6\.?\s*)?(?:Einbehaltene\s+)?Kirchensteuer/i);
-  daten.rv_an = amountNear(text, /Rentenversicherung[^0-9]*(?:AN|Arbeitnehmer)/i);
-  daten.rv_ag = amountNear(text, /Rentenversicherung[^0-9]*(?:AG|Arbeitgeber)/i);
-  daten.kv_an_regulaer = amountNear(text, /Krankenversicherung[^0-9]*(?:AN|Arbeitnehmer)/i);
-  daten.pv_an = amountNear(text, /Pflegeversicherung[^0-9]*(?:AN|Arbeitnehmer)/i);
+
+  const amounts = findAllAmounts(text);
+  if (amounts.length === 0) return { typ: 'lstb', jahr, daten };
+
+  // --- Hauptfelder (3=Brutto, 4=LSt, 5=Soli) ---
+  // Die ersten zwei großen Beträge im Dokument sind fast immer Brutto und LSt.
+  // (In der LStB stehen sie oben links, pdf.js extrahiert sie zuerst.)
+  const mainAmounts = amounts.filter(a => a.value > 100);
+  if (mainAmounts.length >= 1) daten.bruttogehalt = mainAmounts[0].value;
+  if (mainAmounts.length >= 2) daten.lohnsteuer = mainAmounts[1].value;
+  daten.soli_lohn = 0; // Seit 2021 für die meisten 0 → sicher als Default
+  daten.kirchensteuer_lohn = 0;
+
+  // --- SV-Felder (22=RV-AG, 23=RV-AN, 25=KV-AN, 26=PV-AN) ---
+  // In der LStB kommen die SV-Beträge als Block. Bei pdf.js-Extraktion
+  // stehen sie oft NACH den SV-Feld-Labels (22./23./25./26./27.)
+  // ODER DAVOR. Wir suchen den Block mit identischen RV-Werten.
+
+  // Strategie: Finde zwei aufeinanderfolgende identische Beträge (= RV AN/AG)
+  for (let i = 0; i < amounts.length - 1; i++) {
+    const a = amounts[i];
+    const b = amounts[i + 1];
+    if (Math.abs(a.value - b.value) < 0.01 && a.value > 500) {
+      // RV AG und RV AN gefunden
+      daten.rv_ag = a.value;
+      daten.rv_an = b.value;
+      // KV AN ist der nächste Betrag (typisch > 1000)
+      if (i + 2 < amounts.length && amounts[i + 2].value > 500) {
+        daten.kv_an_regulaer = amounts[i + 2].value;
+      }
+      break;
+    }
+  }
+
+  // PV AN: Suche per Label-Nähe (Feld 26)
+  daten.pv_an = amountNear(text, /Pflege-?\s*versicherung/i, 400)
+    || amountNear(text, /26\.\s+Arbeitnehmer/i, 400);
+
+  // Auslandseinkünfte (Feld 16a: steuerfreier Arbeitslohn DBA)
+  daten.auslandseinkuenfte = amountNear(text, /Doppelbesteuerungsabkommen|DBA/i, 400);
+
   return { typ: 'lstb', jahr, daten };
 }
 
