@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Info, X } from 'lucide-react';
 import { FormatExplanationText } from './FormatExplanationText';
@@ -9,22 +9,47 @@ interface InfoTooltipProps {
 
 export function InfoTooltip({ text }: InfoTooltipProps) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const justOpened = useRef(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  const calcPosition = useCallback(() => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const panelWidth = 380;
+    const panelMaxHeight = 320;
+    const gap = 8;
+
+    // Horizontal: try right-aligned to button, but clamp to viewport
+    let left = rect.left;
+    if (left + panelWidth > window.innerWidth - 16) {
+      left = window.innerWidth - panelWidth - 16;
+    }
+    if (left < 16) left = 16;
+
+    // Vertical: below the button if space, otherwise above
+    let top = rect.bottom + gap;
+    if (top + panelMaxHeight > window.innerHeight - 16) {
+      top = rect.top - panelMaxHeight - gap;
+      if (top < 16) top = 16;
+    }
+
+    setPos({ top, left });
+  }, []);
 
   const handleOpen = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     justOpened.current = true;
+    if (!open) calcPosition();
     setOpen((prev) => !prev);
   };
 
-  // Close on outside click (delayed registration to avoid same-click close)
   useEffect(() => {
     if (!open) return;
 
     function handleClick(e: MouseEvent) {
-      // Skip the click that just opened the tooltip
       if (justOpened.current) {
         justOpened.current = false;
         return;
@@ -48,6 +73,7 @@ export function InfoTooltip({ text }: InfoTooltipProps) {
   return (
     <>
       <button
+        ref={btnRef}
         type="button"
         onClick={handleOpen}
         className="inline-flex items-center justify-center w-5 h-5 rounded-full text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition shrink-0"
@@ -64,13 +90,12 @@ export function InfoTooltip({ text }: InfoTooltipProps) {
             onClick={() => setOpen(false)}
           />
 
-          {/* Panel */}
+          {/* Panel — positioned near the button */}
           <div
             ref={panelRef}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:top-20 sm:right-6 sm:left-auto sm:translate-x-0 sm:translate-y-0 w-[calc(100vw-2rem)] max-w-md bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/70 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden"
-            style={{ zIndex: 9999 }}
+            className="absolute w-[calc(100vw-2rem)] max-w-[380px] bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/70 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden"
+            style={{ zIndex: 9999, top: pos.top, left: pos.left }}
           >
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50">
               <div className="flex items-center gap-2">
                 <Info className="w-4 h-4 text-emerald-400" />
@@ -85,8 +110,7 @@ export function InfoTooltip({ text }: InfoTooltipProps) {
               </button>
             </div>
 
-            {/* Content */}
-            <div className="px-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="px-4 py-4 max-h-[280px] overflow-y-auto">
               <FormatExplanationText text={text} />
             </div>
           </div>
