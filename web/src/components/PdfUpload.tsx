@@ -5,9 +5,10 @@ import { parsePdfText, type ParseErgebnis, type BankErgebnis } from '../core/pdf
 import { useDaten } from '../store/DatenContext';
 import { euro } from '../utils/format';
 import type { BankEintrag } from '../data/banken';
+import type { HistorischeEingabe } from '../data/steuerdaten';
 
 // ---------------------------------------------------------------------------
-// Diff-Logik: Vergleich Import vs. bestehende Daten
+// Diff-Logik
 // ---------------------------------------------------------------------------
 
 interface FieldDiff {
@@ -28,9 +29,30 @@ function diffBankEntry(existing: BankEintrag, imported: Partial<BankEintrag>): F
   ];
   for (const { key, label } of fields) {
     const imp = imported[key] as number | undefined;
-    if (imp !== undefined && imp !== 0) {
-      const ex = (existing[key] as number) || 0;
-      diffs.push({ label, existing: ex, imported: imp });
+    if (imp !== undefined) {
+      diffs.push({ label, existing: (existing[key] as number) || 0, imported: imp });
+    }
+  }
+  return diffs;
+}
+
+function diffSteuerdaten(existing: HistorischeEingabe, imported: Partial<HistorischeEingabe>): FieldDiff[] {
+  const diffs: FieldDiff[] = [];
+  const fields: { key: keyof HistorischeEingabe; label: string }[] = [
+    { key: 'bruttogehalt', label: 'Brutto' },
+    { key: 'lohnsteuer', label: 'Lohnsteuer' },
+    { key: 'soli_lohn', label: 'Soli' },
+    { key: 'kirchensteuer_lohn', label: 'Kirchensteuer' },
+    { key: 'rv_an', label: 'RV AN' },
+    { key: 'rv_ag', label: 'RV AG' },
+    { key: 'kv_an_regulaer', label: 'KV AN' },
+    { key: 'pv_an', label: 'PV AN' },
+    { key: 'auslandseinkuenfte', label: 'Auslandseinkünfte (DBA)' },
+  ];
+  for (const { key, label } of fields) {
+    const imp = imported[key] as number | undefined;
+    if (imp !== undefined) {
+      diffs.push({ label, existing: (existing[key] as number) || 0, imported: imp });
     }
   }
   return diffs;
@@ -45,7 +67,8 @@ interface ResultItem {
   result: ParseErgebnis;
   rawText: string;
   applied: boolean;
-  existingBankIndex: number | null; // null = new, number = update existing
+  isUpdate: boolean;
+  existingBankIndex: number | null;
   diffs: FieldDiff[];
 }
 
@@ -79,16 +102,24 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
 
         let existingBankIndex: number | null = null;
         let diffs: FieldDiff[] = [];
+        let isUpdate = false;
 
         if (result.typ === 'bank') {
           const existing = findExistingBank(result.bankName, result.jahr);
           if (existing) {
             existingBankIndex = existing.index;
             diffs = diffBankEntry(existing.entry, result.daten);
+            isUpdate = true;
+          }
+        } else if (result.typ === 'lstb' && result.jahr) {
+          const existing = state.steuerdaten[result.jahr];
+          if (existing) {
+            diffs = diffSteuerdaten(existing, result.daten);
+            isUpdate = true;
           }
         }
 
-        newResults.push({ file: file.name, result, rawText: text, applied: false, existingBankIndex, diffs });
+        newResults.push({ file: file.name, result, rawText: text, applied: false, isUpdate, existingBankIndex, diffs });
       } catch (err) {
         console.error(`Fehler beim Parsen von ${file.name}:`, err);
         newResults.push({
@@ -96,6 +127,7 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
           result: { typ: 'unbekannt', text: `Fehler: ${err}` },
           rawText: '',
           applied: false,
+          isUpdate: false,
           existingBankIndex: null,
           diffs: [],
         });
@@ -104,7 +136,7 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
 
     setResults((prev) => [...prev, ...newResults]);
     setProcessing(false);
-  }, [findExistingBank]);
+  }, [findExistingBank, state.steuerdaten]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -125,10 +157,8 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
       updateSteuerdaten(r.jahr, r.daten);
     } else if (r.typ === 'bank' && r.jahr) {
       if (item.existingBankIndex !== null) {
-        // Update existing bank entry
         updateBank(item.existingBankIndex, r.daten);
       } else {
-        // Add new bank entry
         const bankEintrag: BankEintrag = {
           bank: r.bankName || 'Unbekannte Bank',
           typ: 'Einzel',
@@ -164,7 +194,6 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4" style={{ zIndex: 9000 }}>
       <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-emerald-400" />
@@ -175,23 +204,19 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* Drop Zone */}
         <div className="px-5 py-4">
           <label
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 cursor-pointer transition ${
-              dragOver
-                ? 'border-emerald-500 bg-emerald-500/10'
-                : 'border-slate-600 hover:border-slate-500 hover:bg-slate-800/50'
+              dragOver ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-600 hover:border-slate-500 hover:bg-slate-800/50'
             }`}
           >
-            {processing ? (
-              <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
-            ) : (
-              <Upload className="w-8 h-8 text-slate-500" />
-            )}
+            {processing
+              ? <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+              : <Upload className="w-8 h-8 text-slate-500" />
+            }
             <div className="text-center">
               <p className="text-sm font-medium text-slate-300">
                 {processing ? 'Wird verarbeitet...' : 'PDFs hier hineinziehen oder klicken'}
@@ -200,17 +225,10 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
                 Lohnsteuerbescheinigung, Jahressteuerbescheinigung (Bank), CoinTracking-Report
               </p>
             </div>
-            <input
-              type="file"
-              accept=".pdf"
-              multiple
-              onChange={handleFileInput}
-              className="hidden"
-            />
+            <input type="file" accept=".pdf" multiple onChange={handleFileInput} className="hidden" />
           </label>
         </div>
 
-        {/* Results */}
         {results.length > 0 && (
           <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-3">
             {results.map((item, i) => (
@@ -242,8 +260,7 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
     : 'text-slate-400 bg-slate-500/15 border-slate-500/30';
 
   const jahr = r.typ !== 'unbekannt' ? r.jahr : null;
-  const isUpdate = item.existingBankIndex !== null;
-  const hasDiffs = item.diffs.some((d) => Math.abs(d.existing - d.imported) > 0.01);
+  const hasDiffs = item.diffs.length > 0;
 
   return (
     <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 p-4">
@@ -255,29 +272,33 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
         <div className="flex items-center gap-2 shrink-0">
           <span className={`text-xs px-2 py-0.5 rounded-full border ${typColor}`}>{typLabel}</span>
           {jahr && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">{jahr}</span>}
-          {isUpdate && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
-              Update
-            </span>
+          {item.isUpdate && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">Update</span>
           )}
         </div>
       </div>
 
-      {/* LStB-Felder */}
-      {r.typ === 'lstb' && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
-          {r.daten.bruttogehalt ? <Field label="Brutto" value={euro(r.daten.bruttogehalt)} /> : null}
-          {r.daten.lohnsteuer ? <Field label="Lohnsteuer" value={euro(r.daten.lohnsteuer)} /> : null}
-          {r.daten.soli_lohn ? <Field label="Soli" value={euro(r.daten.soli_lohn)} /> : null}
-          {r.daten.rv_an ? <Field label="RV AN" value={euro(r.daten.rv_an)} /> : null}
-          {r.daten.rv_ag ? <Field label="RV AG" value={euro(r.daten.rv_ag)} /> : null}
-          {r.daten.kv_an_regulaer ? <Field label="KV AN" value={euro(r.daten.kv_an_regulaer)} /> : null}
-          {r.daten.pv_an ? <Field label="PV AN" value={euro(r.daten.pv_an)} /> : null}
+      {/* Vergleichsansicht (LStB, Bank, oder Krypto) */}
+      {hasDiffs && (
+        <div className="space-y-1 text-sm mb-3">
+          {item.isUpdate && r.typ === 'bank' && (
+            <p className="text-xs text-blue-400 font-medium mb-2">
+              Existierender Eintrag für {(r as BankErgebnis).bankName} wird aktualisiert:
+            </p>
+          )}
+          {item.isUpdate && r.typ === 'lstb' && (
+            <p className="text-xs text-blue-400 font-medium mb-2">
+              Steuerdaten {jahr} werden aktualisiert:
+            </p>
+          )}
+          {item.diffs.map((d, i) => (
+            <DiffRow key={i} label={d.label} existing={d.existing} imported={d.imported} />
+          ))}
         </div>
       )}
 
-      {/* Bank-Felder mit Vergleich */}
-      {r.typ === 'bank' && !isUpdate && (
+      {/* Neue Einträge ohne Vergleich */}
+      {!hasDiffs && r.typ === 'bank' && !item.isUpdate && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
           {r.bankName && <Field label="Bank" value={r.bankName} />}
           <Field label="Kapitalerträge" value={euro(r.daten.kapitalertraege ?? 0)} />
@@ -287,22 +308,7 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
         </div>
       )}
 
-      {r.typ === 'bank' && isUpdate && (
-        <div className="space-y-1 text-sm mb-3">
-          <p className="text-xs text-blue-400 font-medium mb-2">
-            Existierender Eintrag für {(r as BankErgebnis).bankName} wird aktualisiert:
-          </p>
-          {item.diffs.map((d, i) => (
-            <DiffRow key={i} label={d.label} existing={d.existing} imported={d.imported} />
-          ))}
-          {!hasDiffs && item.diffs.length > 0 && (
-            <p className="text-xs text-emerald-400 mt-1">Alle Werte stimmen überein.</p>
-          )}
-        </div>
-      )}
-
-      {/* Krypto-Felder */}
-      {r.typ === 'krypto' && (
+      {!hasDiffs && r.typ === 'krypto' && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
           <Field label="§23 Veräußerung" value={euro(r.daten.estg_23)} />
           <Field label="§22 Staking" value={euro(r.daten.estg_22)} />
@@ -311,12 +317,10 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
       )}
 
       {r.typ === 'unbekannt' && (
-        <p className="text-xs text-red-400 mb-3">
-          Konnte das Dokument nicht zuordnen.
-        </p>
+        <p className="text-xs text-red-400 mb-3">Konnte das Dokument nicht zuordnen.</p>
       )}
 
-      {/* Debug: Extrahierter Text */}
+      {/* Debug */}
       <div className="flex items-center gap-2 mb-2">
         <button
           type="button"
@@ -344,7 +348,7 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
             onClick={onApply}
             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg transition"
           >
-            {isUpdate ? 'Daten aktualisieren' : 'Daten übernehmen'}
+            {item.isUpdate ? 'Daten aktualisieren' : 'Daten übernehmen'}
           </button>
         ) : (
           <span className="flex items-center gap-1.5 text-xs text-slate-500">
