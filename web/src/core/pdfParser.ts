@@ -126,9 +126,11 @@ export function parseBank(text: string): BankErgebnis {
   const amountsBlock = findAmountsBlock(text);
 
   // 3. Sortiere gefundene Zeile-Nummern in Standard-KAP-Reihenfolge
-  const sortedZeilen = [...zeileNummern].sort(
-    (a, b) => (KAP_ZEILEN_ORDER.indexOf(a) ?? 99) - (KAP_ZEILEN_ORDER.indexOf(b) ?? 99)
-  );
+  const sortedZeilen = [...zeileNummern].sort((a, b) => {
+    const ia = KAP_ZEILEN_ORDER.indexOf(a);
+    const ib = KAP_ZEILEN_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
 
   // 4. Zähle Zeile-39-Vorkommen (Kirchensteuer hat oft 2 Zeilen)
   const zeile39Count = countZeile39(text);
@@ -177,15 +179,13 @@ export function parseBank(text: string): BankErgebnis {
 function findZeileNummern(text: string): Set<number> {
   const result = new Set<number>();
   // Matche "Zeile X" und "ile X" (pdf.js schneidet oft "Ze" ab)
-  const re = /(?:Ze)?ile\s+(\d{1,2})\s+(?:oder\s+(\d{1,2})\s+)?.*?(?:Anlage\s+KAP|nlage\s+KAP)/gi;
+  const re = /(?:Ze)?ile\s+(\d{1,2})\s+(?:oder\s+\d{1,2}\s+)?.*?(?:Anlage\s+KAP|nlage\s+KAP)/gi;
   let m;
   while ((m = re.exec(text)) !== null) {
     const nr = parseInt(m[1], 10);
-    if (nr !== 19) result.add(nr); // Zeile 19 ist nur Warnungstext
-    if (m[2]) {
-      const nr2 = parseInt(m[2], 10);
-      if (nr2 !== 19) result.add(nr2);
-    }
+    // Zeile 19 ist nur Warnungstext, nicht ein Feld
+    if (nr !== 19) result.add(nr);
+    // "Zeile 16 oder 17" → nur 16 speichern (ist dasselbe Feld)
   }
   return result;
 }
