@@ -87,7 +87,7 @@ const tests: TestCase[] = [
       kapitalertragsteuer: 61.74,
       soli_kapital: 3.39,
     },
-    text: `Deutsche Bank AG  Jahressteuerbescheinigung  Postbank als Niederlassung der Deutsche Bank AG  Steuerbescheinigung  Bescheinigung für alle Privatkonten und / oder -depots  werden für das Kalenderjahr 2025 folgende Angaben bescheinigt:  Zeile Betrag in EUR  Anlage KAP  7 246,94  Höhe der Kapitalerträge  Kapitalertragsteuer 37 61,74  Solidaritätszuschlag 38 3,39`,
+    text: `Seite   3   von   3   /   20.02.2026  Steuerbescheinigung  Bescheinigung   für   alle   Privatkonten   und   /   oder   -depots X  werden   für   das   Kalenderjahr   2025   folgende   Angaben   bescheinigt:  Betrag   in   EUR Zeile  Anlage  KAP  246,94 7  Höhe   der   Kapitalerträge  nach   Berücksichtigung   der   teilweisen   Steuerfreistellung   im   Sinne   des  §   20   Abs.   1   Nr.   6   Satz   9   EStG  (ohne   Kapitalerträge   aus   Lebensversicherungen   im   Sinne  des   §   20   Abs.   1   Nr.   6   Satz   2   EStG)  61,74 37 Kapitalertragsteuer  3,39 38 Solidaritätszuschlag  Deutsche   Bank   AG  Jahressteuerbescheinigung   für   2025  Postbank als Niederlassung der Deutsche Bank AG`,
   },
 
   {

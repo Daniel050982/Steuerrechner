@@ -248,14 +248,23 @@ function buildBlockMap(text: string, zeileNummern: Set<number>): Map<number, num
  */
 function parseInlineZeileAmounts(text: string): Map<number, number> {
   const result = new Map<number, number>();
-  // Matche: Zeilennummer (1-2 Digits) gefolgt von EUR-Betrag
-  const re = /\b(7|8|9|10|11|12|13|14|15|16|37|38|39|40|41|42)\s+(-?[\d.]+,\d{2})\b/g;
+  const zeilen = '7|8|9|10|11|12|13|14|15|16|37|38|39|40|41|42';
+
+  // Format A: Zeilennummer gefolgt von Betrag → "37 61,74"
+  const reA = new RegExp(`\\b(${zeilen})\\s+(-?[\\d.]+,\\d{2})\\b`, 'g');
   let m;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = reA.exec(text)) !== null) {
     const nr = parseInt(m[1], 10);
-    const val = parseEuro(m[2]);
-    if (!result.has(nr)) result.set(nr, val);
+    if (!result.has(nr)) result.set(nr, parseEuro(m[2]));
   }
+
+  // Format B: Betrag gefolgt von Zeilennummer → "246,94 7" (Postbank)
+  const reB = new RegExp(`(-?[\\d.]+,\\d{2})\\s+(${zeilen})\\b`, 'g');
+  while ((m = reB.exec(text)) !== null) {
+    const nr = parseInt(m[2], 10);
+    if (!result.has(nr)) result.set(nr, parseEuro(m[1]));
+  }
+
   return result;
 }
 
