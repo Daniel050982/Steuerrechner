@@ -268,6 +268,27 @@ function parseInlineZeileAmounts(text: string): Map<number, number> {
   return result;
 }
 
+/**
+ * Findet den ERSTEN Block aufeinanderfolgender EUR-Beträge (> 100 €).
+ * Für LStB: Brutto und LSt stehen immer am Anfang des Dokuments.
+ */
+function findFirstAmountsBlock(text: string): number[] {
+  const amounts = findAllAmounts(text);
+  if (amounts.length === 0) return [];
+
+  // Erster signifikanter Betrag (> 100) startet den Block
+  const startIdx = amounts.findIndex(a => a.value > 100);
+  if (startIdx < 0) return [];
+
+  const block = [amounts[startIdx].value];
+  for (let i = startIdx + 1; i < amounts.length; i++) {
+    const gap = amounts[i].index - (amounts[i - 1].index + amounts[i - 1].raw.length);
+    if (gap > 150) break; // Block-Ende
+    block.push(amounts[i].value);
+  }
+  return block;
+}
+
 /** Zählt wie oft "Zeile 39" / "ile 39" vorkommt (für doppelte Kirchensteuer). */
 function countZeile39(text: string): number {
   const matches = text.match(/(?:Ze)?ile\s+39/gi);
@@ -346,7 +367,8 @@ export function parseLStB(text: string): LStBErgebnis {
 
   // --- Erster Block: Hauptfelder ---
   // Die ersten Beträge im Dokument sind Brutto, LSt und weitere Felder.
-  const firstBlock = findAmountsBlock(text);
+  // Wichtig: ERSTEN Block nehmen (nicht größten!), weil Brutto/LSt immer zuerst kommen.
+  const firstBlock = findFirstAmountsBlock(text);
   const mainAmounts = firstBlock.filter(v => v > 100);
   if (mainAmounts.length >= 1) daten.bruttogehalt = mainAmounts[0];
   if (mainAmounts.length >= 2) daten.lohnsteuer = mainAmounts[1];
