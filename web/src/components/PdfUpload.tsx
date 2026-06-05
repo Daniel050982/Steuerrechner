@@ -1,22 +1,70 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, X, Loader2, ArrowRight } from 'lucide-react';
 import { extractTextFromPdf } from '../core/pdfExtract';
-import { parsePdfText, type ParseErgebnis } from '../core/pdfParser';
+import { parsePdfText, type ParseErgebnis, type BankErgebnis } from '../core/pdfParser';
 import { useDaten } from '../store/DatenContext';
 import { euro } from '../utils/format';
 import type { BankEintrag } from '../data/banken';
+
+// ---------------------------------------------------------------------------
+// Diff-Logik: Vergleich Import vs. bestehende Daten
+// ---------------------------------------------------------------------------
+
+interface FieldDiff {
+  label: string;
+  existing: number;
+  imported: number;
+}
+
+function diffBankEntry(existing: BankEintrag, imported: Partial<BankEintrag>): FieldDiff[] {
+  const diffs: FieldDiff[] = [];
+  const fields: { key: keyof BankEintrag; label: string }[] = [
+    { key: 'kapitalertraege', label: 'Kapitalerträge' },
+    { key: 'kapitalertragsteuer', label: 'KapESt' },
+    { key: 'soli_kapital', label: 'Soli' },
+    { key: 'kirchensteuer', label: 'Kirchensteuer' },
+    { key: 'sparer_pauschbetrag', label: 'Pauschbetrag' },
+    { key: 'invstg_56', label: '§56 InvStG' },
+  ];
+  for (const { key, label } of fields) {
+    const imp = imported[key] as number | undefined;
+    if (imp !== undefined && imp !== 0) {
+      const ex = (existing[key] as number) || 0;
+      diffs.push({ label, existing: ex, imported: imp });
+    }
+  }
+  return diffs;
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface ResultItem {
   file: string;
   result: ParseErgebnis;
   applied: boolean;
+  existingBankIndex: number | null; // null = new, number = update existing
+  diffs: FieldDiff[];
 }
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function PdfUpload({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<ResultItem[]>([]);
   const [processing, setProcessing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const { updateSteuerdaten, addBank } = useDaten();
+  const { state, updateSteuerdaten, updateBank, addBank } = useDaten();
+
+  const findExistingBank = useCallback((bankName: string | null, jahr: number | null): { index: number; entry: BankEintrag } | null => {
+    if (!bankName || !jahr) return null;
+    const idx = state.banken.findIndex(
+      (b) => b.bank.toLowerCase() === bankName.toLowerCase() && b.jahr === jahr
+    );
+    return idx >= 0 ? { index: idx, entry: state.banken[idx] } : null;
+  }, [state.banken]);
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
     setProcessing(true);
@@ -27,20 +75,34 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
       try {
         const text = await extractTextFromPdf(file);
         const result = parsePdfText(text);
-        newResults.push({ file: file.name, result, applied: false });
+
+        let existingBankIndex: number | null = null;
+        let diffs: FieldDiff[] = [];
+
+        if (result.typ === 'bank') {
+          const existing = findExistingBank(result.bankName, result.jahr);
+          if (existing) {
+            existingBankIndex = existing.index;
+            diffs = diffBankEntry(existing.entry, result.daten);
+          }
+        }
+
+        newResults.push({ file: file.name, result, applied: false, existingBankIndex, diffs });
       } catch (err) {
         console.error(`Fehler beim Parsen von ${file.name}:`, err);
         newResults.push({
           file: file.name,
           result: { typ: 'unbekannt', text: `Fehler: ${err}` },
           applied: false,
+          existingBankIndex: null,
+          diffs: [],
         });
       }
     }
 
     setResults((prev) => [...prev, ...newResults]);
     setProcessing(false);
-  }, []);
+  }, [findExistingBank]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -60,24 +122,30 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
     if (r.typ === 'lstb' && r.jahr) {
       updateSteuerdaten(r.jahr, r.daten);
     } else if (r.typ === 'bank' && r.jahr) {
-      const bankEintrag: BankEintrag = {
-        bank: r.bankName || 'Unbekannte Bank',
-        typ: 'Einzel',
-        jahr: r.jahr,
-        kapitalertraege: r.daten.kapitalertraege ?? 0,
-        kapitalertragsteuer: r.daten.kapitalertragsteuer ?? 0,
-        soli_kapital: r.daten.soli_kapital ?? 0,
-        kirchensteuer: r.daten.kirchensteuer ?? 0,
-        sparer_pauschbetrag: r.daten.sparer_pauschbetrag ?? 0,
-        invstg_56: r.daten.invstg_56 ?? 0,
-        fiktiv_zugeflossen: 0,
-        broker_verluste: 0,
-        estg_20: 0,
-        estg_23: 0,
-        estg_22: 0,
-        notiz: `Importiert aus ${item.file}`,
-      };
-      addBank(bankEintrag);
+      if (item.existingBankIndex !== null) {
+        // Update existing bank entry
+        updateBank(item.existingBankIndex, r.daten);
+      } else {
+        // Add new bank entry
+        const bankEintrag: BankEintrag = {
+          bank: r.bankName || 'Unbekannte Bank',
+          typ: 'Einzel',
+          jahr: r.jahr,
+          kapitalertraege: r.daten.kapitalertraege ?? 0,
+          kapitalertragsteuer: r.daten.kapitalertragsteuer ?? 0,
+          soli_kapital: r.daten.soli_kapital ?? 0,
+          kirchensteuer: r.daten.kirchensteuer ?? 0,
+          sparer_pauschbetrag: r.daten.sparer_pauschbetrag ?? 0,
+          invstg_56: r.daten.invstg_56 ?? 0,
+          fiktiv_zugeflossen: 0,
+          broker_verluste: 0,
+          estg_20: 0,
+          estg_23: 0,
+          estg_22: 0,
+          notiz: `Importiert aus ${item.file}`,
+        };
+        addBank(bankEintrag);
+      }
     } else if (r.typ === 'krypto' && r.jahr) {
       updateSteuerdaten(r.jahr, {
         estg_23: r.daten.estg_23,
@@ -89,7 +157,7 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
     setResults((prev) =>
       prev.map((it, i) => (i === index ? { ...it, applied: true } : it))
     );
-  }, [results, updateSteuerdaten, addBank]);
+  }, [results, updateSteuerdaten, updateBank, addBank]);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4" style={{ zIndex: 9000 }}>
@@ -153,6 +221,10 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Result Card
+// ---------------------------------------------------------------------------
+
 function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }) {
   const r = item.result;
 
@@ -167,6 +239,8 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
     : 'text-slate-400 bg-slate-500/15 border-slate-500/30';
 
   const jahr = r.typ !== 'unbekannt' ? r.jahr : null;
+  const isUpdate = item.existingBankIndex !== null;
+  const hasDiffs = item.diffs.some((d) => Math.abs(d.existing - d.imported) > 0.01);
 
   return (
     <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 p-4">
@@ -178,10 +252,15 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
         <div className="flex items-center gap-2 shrink-0">
           <span className={`text-xs px-2 py-0.5 rounded-full border ${typColor}`}>{typLabel}</span>
           {jahr && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">{jahr}</span>}
+          {isUpdate && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+              Update
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Erkannte Werte */}
+      {/* LStB-Felder */}
       {r.typ === 'lstb' && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
           {r.daten.bruttogehalt ? <Field label="Brutto" value={euro(r.daten.bruttogehalt)} /> : null}
@@ -194,16 +273,32 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
         </div>
       )}
 
-      {r.typ === 'bank' && (
+      {/* Bank-Felder mit Vergleich */}
+      {r.typ === 'bank' && !isUpdate && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
           {r.bankName && <Field label="Bank" value={r.bankName} />}
-          {r.daten.kapitalertraege ? <Field label="Kapitalerträge" value={euro(r.daten.kapitalertraege)} /> : null}
-          {r.daten.kapitalertragsteuer ? <Field label="KapESt" value={euro(r.daten.kapitalertragsteuer)} /> : null}
-          {r.daten.soli_kapital ? <Field label="Soli" value={euro(r.daten.soli_kapital)} /> : null}
-          {r.daten.sparer_pauschbetrag ? <Field label="Pauschbetrag" value={euro(r.daten.sparer_pauschbetrag)} /> : null}
+          <Field label="Kapitalerträge" value={euro(r.daten.kapitalertraege ?? 0)} />
+          <Field label="KapESt" value={euro(r.daten.kapitalertragsteuer ?? 0)} />
+          <Field label="Soli" value={euro(r.daten.soli_kapital ?? 0)} />
+          <Field label="Pauschbetrag" value={euro(r.daten.sparer_pauschbetrag ?? 0)} />
         </div>
       )}
 
+      {r.typ === 'bank' && isUpdate && (
+        <div className="space-y-1 text-sm mb-3">
+          <p className="text-xs text-blue-400 font-medium mb-2">
+            Existierender Eintrag für {(r as BankErgebnis).bankName} wird aktualisiert:
+          </p>
+          {item.diffs.map((d, i) => (
+            <DiffRow key={i} label={d.label} existing={d.existing} imported={d.imported} />
+          ))}
+          {!hasDiffs && item.diffs.length > 0 && (
+            <p className="text-xs text-emerald-400 mt-1">Alle Werte stimmen überein.</p>
+          )}
+        </div>
+      )}
+
+      {/* Krypto-Felder */}
       {r.typ === 'krypto' && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
           <Field label="§23 Veräußerung" value={euro(r.daten.estg_23)} />
@@ -214,7 +309,7 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
 
       {r.typ === 'unbekannt' && (
         <p className="text-xs text-red-400 mb-3">
-          Konnte das Dokument nicht zuordnen. Bitte prüfe, ob es eine Lohnsteuer-, Bank- oder Krypto-Bescheinigung ist.
+          Konnte das Dokument nicht zuordnen.
         </p>
       )}
 
@@ -230,7 +325,7 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
             onClick={onApply}
             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg transition"
           >
-            Daten übernehmen
+            {isUpdate ? 'Daten aktualisieren' : 'Daten übernehmen'}
           </button>
         ) : (
           <span className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -248,6 +343,29 @@ function Field({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between">
       <span className="text-slate-500">{label}</span>
       <span className="text-slate-200 font-medium">{value}</span>
+    </div>
+  );
+}
+
+function DiffRow({ label, existing, imported }: { label: string; existing: number; imported: number }) {
+  const changed = Math.abs(existing - imported) > 0.01;
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-slate-400">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className={`font-medium ${changed ? 'text-slate-500 line-through' : 'text-slate-300'}`}>
+          {euro(existing)}
+        </span>
+        {changed && (
+          <>
+            <ArrowRight className="w-3 h-3 text-emerald-400" />
+            <span className="text-emerald-400 font-medium">{euro(imported)}</span>
+          </>
+        )}
+        {!changed && (
+          <CheckCircle className="w-3 h-3 text-emerald-500" />
+        )}
+      </div>
     </div>
   );
 }
