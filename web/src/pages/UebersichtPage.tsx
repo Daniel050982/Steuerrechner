@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, ArrowRight, Upload } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
+import { PdfUpload } from '../components/PdfUpload';
 import { useDaten } from '../store/DatenContext';
 import { euro, prozent } from '../utils/format';
 import type { HistorischesErgebnis } from '../data/ergebnisse';
@@ -65,6 +67,7 @@ function JahresCard({ jahr, e }: { jahr: number; e: HistorischesErgebnis }) {
 
 export default function UebersichtPage() {
   const { state, loading } = useDaten();
+  const [showUpload, setShowUpload] = useState(false);
 
   if (loading) {
     return (
@@ -83,6 +86,13 @@ export default function UebersichtPage() {
             <h1 className="text-lg font-bold text-slate-100">Steuerrechner</h1>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+            >
+              <Upload className="w-4 h-4" />
+              PDF Import
+            </button>
             <Link
               to="/banken"
               className="px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
@@ -107,6 +117,8 @@ export default function UebersichtPage() {
           })}
         </div>
       </main>
+
+      {showUpload && <PdfUpload onClose={() => setShowUpload(false)} />}
     </div>
   );
 }
