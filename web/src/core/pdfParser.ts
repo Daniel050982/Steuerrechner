@@ -84,8 +84,8 @@ function erkenneBankname(text: string): string | null {
   const patterns: [RegExp, string][] = [
     [/comdirect|commerzbank/i, 'Comdirect'],
     [/consorsbank|consors\s*bank/i, 'Consors'],
-    [/scalable\s*capital/i, 'Scalable/Baader'],
-    [/baader\s*bank/i, 'Scalable/Baader'],
+    [/scalable\s*capital/i, 'Scalable Capital'],
+    [/baader\s*bank/i, 'Baader Bank'],
     [/bb\s*bank/i, 'BB Bank'],
     [/postbank/i, 'Postbank'],
     [/deutsche\s*bank/i, 'Postbank'],

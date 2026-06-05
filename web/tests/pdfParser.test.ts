@@ -39,7 +39,7 @@ const tests: TestCase[] = [
     name: 'Scalable/Baader 2025',
     expectedTyp: 'bank',
     expectedJahr: 2025,
-    expectedBank: 'Scalable/Baader',
+    expectedBank: 'Scalable Capital',
     expected: {
       kapitalertraege: 146.68,
       sparer_pauschbetrag: 146.68,
