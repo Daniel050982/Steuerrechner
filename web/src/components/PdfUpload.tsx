@@ -43,6 +43,7 @@ function diffBankEntry(existing: BankEintrag, imported: Partial<BankEintrag>): F
 interface ResultItem {
   file: string;
   result: ParseErgebnis;
+  rawText: string;
   applied: boolean;
   existingBankIndex: number | null; // null = new, number = update existing
   diffs: FieldDiff[];
@@ -87,12 +88,13 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
           }
         }
 
-        newResults.push({ file: file.name, result, applied: false, existingBankIndex, diffs });
+        newResults.push({ file: file.name, result, rawText: text, applied: false, existingBankIndex, diffs });
       } catch (err) {
         console.error(`Fehler beim Parsen von ${file.name}:`, err);
         newResults.push({
           file: file.name,
           result: { typ: 'unbekannt', text: `Fehler: ${err}` },
+          rawText: '',
           applied: false,
           existingBankIndex: null,
           diffs: [],
@@ -226,6 +228,7 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
 // ---------------------------------------------------------------------------
 
 function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }) {
+  const [showDebug, setShowDebug] = useState(false);
   const r = item.result;
 
   const typLabel = r.typ === 'lstb' ? 'Lohnsteuerbescheinigung'
@@ -311,6 +314,22 @@ function ResultCard({ item, onApply }: { item: ResultItem; onApply: () => void }
         <p className="text-xs text-red-400 mb-3">
           Konnte das Dokument nicht zuordnen.
         </p>
+      )}
+
+      {/* Debug: Extrahierter Text */}
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => setShowDebug(!showDebug)}
+          className="text-xs text-slate-500 hover:text-slate-300 underline transition"
+        >
+          {showDebug ? 'Debug ausblenden' : 'Extrahierten Text anzeigen'}
+        </button>
+      </div>
+      {showDebug && (
+        <pre className="text-xs text-slate-500 bg-slate-950 rounded-lg p-3 mb-3 max-h-48 overflow-auto whitespace-pre-wrap break-all select-all">
+          {item.rawText || 'Kein Text extrahiert'}
+        </pre>
       )}
 
       {/* Action */}
