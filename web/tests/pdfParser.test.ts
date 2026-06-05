@@ -5,10 +5,10 @@
  * Wenn nächstes Jahr ein PDF nicht mehr parst, füge den Debug-Text hier ein
  * und prüfe, was sich geändert hat.
  *
- * Ausführen: npx tsx src/core/pdfParser.test.ts
+ * Ausführen: npx tsx tests/pdfParser.test.ts
  */
 
-import { parsePdfText } from './pdfParser';
+import { parsePdfText } from '../src/core/pdfParser';
 
 interface TestCase {
   name: string;
