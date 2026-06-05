@@ -1,3 +1,8 @@
+export interface DetailPosten {
+  name: string;
+  betrag: number;
+}
+
 /** Historische Eingabedaten aus dem Google-Sheet (Steuerdaten-Tab) */
 export interface HistorischeEingabe {
   jahr: number;
@@ -24,6 +29,7 @@ export interface HistorischeEingabe {
   jstg_2024_anwenden: boolean;
   // Auslandsarbeit
   auslandseinkuenfte: number;
+  auslandseinkuenfte_details?: DetailPosten[];
   auslands_sv: number;
   anrechenbare_auslandssteuer: number;
   // Sozialversicherung
@@ -35,6 +41,7 @@ export interface HistorischeEingabe {
   kv_ag: number;
   pv_ag: number;
   weitere_versicherungen: number;
+  versicherungen_details?: DetailPosten[];
   spenden: number;
   // Werbungskosten
   fahrt_tage: number;
@@ -42,6 +49,7 @@ export interface HistorischeEingabe {
   homeoffice_tage: number;
   arbeitsmittel: number;
   sonstige_werbungskosten: number;
+  sonstige_wk_details?: DetailPosten[];
   haushaltsnahe_dienstleistungen: number;
   handwerkerleistungen: number;
   // Allgemein

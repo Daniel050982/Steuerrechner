@@ -1,6 +1,6 @@
 export interface BankEintrag {
   bank: string;
-  typ: 'Einzel' | 'Gemeinschaft 50%' | 'Krypto' | 'Ignorieren';
+  typ: 'Einzel' | 'Gemeinschaft 50%' | 'Gemeinschaft 50% (KapESt voll)' | 'Gemeinschaft 33%' | 'Krypto' | 'Ignorieren';
   jahr: number;
   kapitalertraege: number;
   kapitalertragsteuer: number;

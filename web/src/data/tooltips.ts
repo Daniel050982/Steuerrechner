@@ -127,31 +127,43 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
     'Arbeitnehmer-Anteil der gesetzlichen Rentenversicherung.\n\n' +
     '• LStB Zeile 23a\n' +
     '• Aktueller Beitragssatz: 18,6% (je Hälfte AN/AG)\n' +
-    '• Seit 2023 zu 100% als Sonderausgabe absetzbar',
+    '• Seit 2023 zu 100% als Sonderausgabe absetzbar\n\n' +
+    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
 
   rv_ag:
     'Arbeitgeber-Anteil der gesetzlichen Rentenversicherung.\n\n' +
-    '• LStB Zeile 23b\n' +
+    '• LStB Zeile 22a\n' +
     '• Wird für die Vorsorge-Berechnung benötigt\n' +
-    '• Formel: (AN + AG) × Abzugssatz − AG-Anteil = absetzbar',
+    '• Formel: (AN + AG) × Abzugssatz − AG-Anteil = absetzbar\n\n' +
+    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
+
+  kv_an_gesamt:
+    'Gesamter Arbeitnehmer-Anteil der Krankenversicherung inkl. Zusatzbeitrag und evtl. Wahltarife.\n\n' +
+    '• Bildet die Basis für die abziehbare KV (nach 4%-Kürzung)\n' +
+    '• Wenn gesamt ≠ regulär: Der reguläre Teil dient als Basis für die 4%-Kürzung',
 
   kv_an_regulaer:
     'Regulärer Arbeitnehmer-Anteil der Krankenversicherung.\n\n' +
     '• LStB Zeile 25\n' +
     '• Wird um 4% gekürzt (Krankengeld-Anteil) und dann voll abgesetzt\n' +
-    '• Bei privater KV: der Basisbeitrag',
+    '• Bei privater KV: der Basisbeitrag\n\n' +
+    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
 
   pv_an:
     'Arbeitnehmer-Anteil der Pflegeversicherung.\n\n' +
-    '• LStB Zeile 27\n' +
+    '• LStB Zeile 26\n' +
     '• Kinderlose über 23 zahlen einen Zuschlag\n' +
-    '• Wird vollständig als Sonderausgabe abgesetzt',
+    '• Wird vollständig als Sonderausgabe abgesetzt\n\n' +
+    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
 
   weitere_versicherungen:
-    'Private Versicherungen wie Berufsunfähigkeit, Unfallversicherung, Haftpflicht.\n\n' +
-    '• Nur absetzbar, wenn die Vorsorge-Höchstgrenze (1.900 €) nicht durch KV/PV ausgeschöpft ist\n' +
-    '• In der Praxis bei gesetzlich Versicherten meist kein Spielraum\n' +
-    '• Bei privat Versicherten kann es sich lohnen',
+    'Sonstige Vorsorgeaufwendungen (Anlage Vorsorgeaufwand, Zeile 46–52).\n\n' +
+    '• Private Haftpflichtversicherung\n' +
+    '• Zahnzusatzversicherung, Krankenzusatzversicherung\n' +
+    '• Kfz-Haftpflicht (nur Haftpflicht-Anteil, nicht Kasko)\n' +
+    '• Unfallversicherung, Berufsunfähigkeitsversicherung\n' +
+    '• Risikolebensversicherung\n\n' +
+    'Nur absetzbar, wenn die Vorsorge-Höchstgrenze (1.900 € bei AN / 2.800 € bei Selbständigen) nicht durch KV/PV ausgeschöpft ist. Bei gesetzlich Versicherten meist kein Spielraum — bei privat Versicherten kann es sich lohnen.',
 
   spenden:
     'Spenden an gemeinnützige Organisationen.\n\n' +
@@ -188,12 +200,14 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
     '• Belege aufbewahren!',
 
   sonstige_werbungskosten:
-    'Weitere berufsbedingte Ausgaben.\n\n' +
-    '• Gewerkschaftsbeiträge\n' +
+    'Weitere berufsbedingte Ausgaben, die nicht in die anderen Felder passen.\n\n' +
+    '• Internetkosten (20% der Rechnung, max. 20 €/Monat = 240 €/Jahr)\n' +
+    '• Kontoführungsgebühren (16 € pauschal)\n' +
+    '• Verpflegungsmehraufwand bei Dienstreisen (14 €/28 € pro Tag)\n' +
     '• Fortbildungskosten, Fachliteratur\n' +
+    '• Gewerkschaftsbeiträge\n' +
     '• Berufskleidung (nur typische Berufskleidung)\n' +
-    '• Verpflegungsmehraufwand bei Dienstreisen\n' +
-    '• Bewerbungskosten, Kontoführungsgebühren (16 € pauschal)',
+    '• Bewerbungskosten, Umzugskosten',
 
   haushaltsnahe_dienstleistungen:
     'Kosten für haushaltsnahe Dienstleistungen (Arbeitskosten, nicht Material).\n\n' +

@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Calculator, Upload } from 'lucide-react';
+import { ArrowLeft, Calculator, Upload, Plus, Trash2 } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { Card } from '../components/ui/Card';
 import { EditableField } from '../components/ui/EditableField';
 import { PdfUpload } from '../components/PdfUpload';
 import { useDaten } from '../store/DatenContext';
+import type { DetailPosten } from '../data/steuerdaten';
 import { euro, prozent } from '../utils/format';
 import { TOOLTIPS_STEUERDATEN as TS, TOOLTIPS_ERGEBNIS as TE } from '../data/tooltips';
+import { getConfig } from '../core/config';
 
 function ReadOnlyRow({ label, value, bold, indent, color }: {
   label: string;
@@ -22,9 +24,12 @@ function ReadOnlyRow({ label, value, bold, indent, color }: {
     : 'text-slate-200';
 
   return (
-    <div className={`flex justify-between py-1.5 border-b border-slate-700/30 last:border-0 ${indent ? 'pl-4' : ''}`}>
+    <div className={`flex items-center justify-between py-1.5 border-b border-slate-700/30 last:border-0 ${indent ? 'pl-4' : ''}`}>
       <span className={`text-sm ${bold ? 'font-semibold text-slate-200' : 'text-slate-400'}`}>{label}</span>
-      <span className={`text-sm font-medium ${bold ? 'font-bold' : ''} ${colorClass}`}>{value}</span>
+      <span className={`flex items-center gap-1.5 text-sm font-medium ${bold ? 'font-bold' : ''} ${colorClass}`}>
+        {value}
+        <span className="w-3 h-3 invisible" />
+      </span>
     </div>
   );
 }
@@ -37,12 +42,71 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function DetailZeile({ posten, placeholder, onChangeName, onChangeBetrag, onDelete }: {
+  posten: DetailPosten;
+  placeholder?: string;
+  onChangeName: (name: string) => void;
+  onChangeBetrag: (betrag: number) => void;
+  onDelete: () => void;
+}) {
+  const [editingBetrag, setEditingBetrag] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const startEdit = () => {
+    setDraft(String(posten.betrag || ''));
+    setEditingBetrag(true);
+  };
+  const confirmEdit = () => {
+    const parsed = parseFloat(draft.replace(/\./g, '').replace(',', '.')) || 0;
+    onChangeBetrag(parsed);
+    setEditingBetrag(false);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 pl-4 py-1.5 border-b border-slate-700/30">
+      <input
+        type="text"
+        value={posten.name}
+        onChange={(e) => onChangeName(e.target.value)}
+        placeholder={placeholder ?? "Bezeichnung"}
+        className="flex-1 min-w-0 rounded-lg bg-transparent border-none px-0 py-0 text-sm text-slate-400 placeholder:text-slate-600 focus:outline-none focus:ring-0"
+      />
+      {editingBetrag ? (
+        <input
+          autoFocus
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={confirmEdit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') confirmEdit();
+            if (e.key === 'Escape') setEditingBetrag(false);
+          }}
+          className="w-24 text-right rounded-lg border border-emerald-500 bg-slate-800 px-2 py-0.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+      ) : (
+        <button type="button" onClick={startEdit} className="text-sm text-slate-200 hover:text-emerald-400 transition">
+          {euro(posten.betrag)}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onDelete}
+        className="p-1 rounded-lg text-slate-600 hover:text-red-400 hover:bg-slate-700 transition"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export default function JahrDetailPage() {
   const { jahr: jahrStr } = useParams();
   const jahr = Number(jahrStr);
   const { state, updateSteuerdaten, updateErgebnis } = useDaten();
   const e = state.ergebnisse[jahr];
   const d = state.steuerdaten[jahr];
+  const [showUpload, setShowUpload] = useState(false);
 
   if (!e || !d) {
     return (
@@ -52,7 +116,6 @@ export default function JahrDetailPage() {
     );
   }
 
-  const [showUpload, setShowUpload] = useState(false);
   const erstattung = e.erstattung_nachzahlung > 0;
   const sd = (field: keyof typeof d, value: number) => updateSteuerdaten(jahr, { [field]: value });
   const se = (field: keyof typeof e, value: number) => updateErgebnis(jahr, { [field]: value });
@@ -116,6 +179,60 @@ export default function JahrDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Linke Spalte: Eingabedaten (editierbar) */}
           <div className="space-y-6">
+            <Section title="Allgemein">
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-700/30">
+                <span className="text-sm text-slate-400">Verheiratet / Splitting</span>
+                <button
+                  type="button"
+                  onClick={() => updateSteuerdaten(jahr, { verheiratet: !d.verheiratet })}
+                  className={`px-3 py-0.5 rounded-full text-xs font-medium transition ${d.verheiratet ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
+                >
+                  {d.verheiratet ? 'Ja' : 'Nein'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-700/30">
+                <span className="text-sm text-slate-400">Krankenversicherung</span>
+                <select
+                  value={d.krankenversichert}
+                  onChange={(ev) => updateSteuerdaten(jahr, { krankenversichert: ev.target.value as 'gesetzlich' | 'privat' })}
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="gesetzlich">Gesetzlich</option>
+                  <option value="privat">Privat</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-700/30">
+                <span className="text-sm text-slate-400">Günstigerprüfung (Kapital)</span>
+                <button
+                  type="button"
+                  onClick={() => updateSteuerdaten(jahr, { guenstigerpruefung: !d.guenstigerpruefung })}
+                  className={`px-3 py-0.5 rounded-full text-xs font-medium transition ${d.guenstigerpruefung ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
+                >
+                  {d.guenstigerpruefung ? 'Ja' : 'Nein'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-700/30">
+                <span className="text-sm text-slate-400">Verlustvorträge anwenden</span>
+                <button
+                  type="button"
+                  onClick={() => updateSteuerdaten(jahr, { verlustvortraege_anwenden: !d.verlustvortraege_anwenden })}
+                  className={`px-3 py-0.5 rounded-full text-xs font-medium transition ${d.verlustvortraege_anwenden ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
+                >
+                  {d.verlustvortraege_anwenden ? 'Ja' : 'Nein'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-700/30 last:border-0">
+                <span className="text-sm text-slate-400">JStG 2024 (§20-Verluste)</span>
+                <button
+                  type="button"
+                  onClick={() => updateSteuerdaten(jahr, { jstg_2024_anwenden: !d.jstg_2024_anwenden })}
+                  className={`px-3 py-0.5 rounded-full text-xs font-medium transition ${d.jstg_2024_anwenden ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
+                >
+                  {d.jstg_2024_anwenden ? 'Ja' : 'Nein'}
+                </button>
+              </div>
+            </Section>
+
             <Section title="Lohn & Gehalt">
               <EditableField label="Bruttoarbeitslohn" value={d.bruttogehalt} onChange={(v) => sd('bruttogehalt', v)} tooltip={TS.bruttogehalt} />
               <EditableField label="Lohnsteuer" value={d.lohnsteuer} onChange={(v) => sd('lohnsteuer', v)} tooltip={TS.lohnsteuer} />
@@ -128,6 +245,7 @@ export default function JahrDetailPage() {
               <EditableField label="Sparer-Pauschbetrag" value={d.sparer_pauschbetrag} onChange={(v) => sd('sparer_pauschbetrag', v)} tooltip={TS.sparer_pauschbetrag} />
               <EditableField label="Abgeltungsteuer gezahlt" value={d.abgeltungsteuer_gezahlt} onChange={(v) => sd('abgeltungsteuer_gezahlt', v)} tooltip={TS.abgeltungsteuer_gezahlt} />
               <EditableField label="Soli Kapital gezahlt" value={d.soli_kapital_gezahlt} onChange={(v) => sd('soli_kapital_gezahlt', v)} tooltip={TS.soli_kapital_gezahlt} />
+              <EditableField label="Kirchensteuer Kapital" value={d.kirchensteuer_kapital} onChange={(v) => sd('kirchensteuer_kapital', v)} tooltip={TS.kirchensteuer_kapital} />
             </Section>
 
             <Section title="Krypto-Einkünfte">
@@ -142,10 +260,92 @@ export default function JahrDetailPage() {
             <Section title="Sozialversicherung">
               <EditableField label="RV-Beitrag AN" value={d.rv_an} onChange={(v) => sd('rv_an', v)} tooltip={TS.rv_an} />
               <EditableField label="RV-Beitrag AG" value={d.rv_ag} onChange={(v) => sd('rv_ag', v)} tooltip={TS.rv_ag} />
-              <EditableField label="KV-Beitrag AN (regulär)" value={d.kv_an_regulaer} onChange={(v) => sd('kv_an_regulaer', v)} tooltip={TS.kv_an_regulaer} />
+              {d.kv_an_gesamt !== d.kv_an_regulaer && d.kv_an_regulaer > 0 ? (
+                <>
+                  <EditableField label="KV-Beitrag AN (gesamt)" value={d.kv_an_gesamt} onChange={(v) => sd('kv_an_gesamt', v)} tooltip={TS.kv_an_gesamt} />
+                  <EditableField label="KV-Beitrag AN (regulär)" value={d.kv_an_regulaer} onChange={(v) => sd('kv_an_regulaer', v)} indent tooltip={TS.kv_an_regulaer} />
+                </>
+              ) : (
+                <EditableField label="KV-Beitrag AN" value={d.kv_an_regulaer} onChange={(v) => updateSteuerdaten(jahr, { kv_an_regulaer: v, kv_an_gesamt: v })} tooltip={TS.kv_an_regulaer} />
+              )}
               <EditableField label="PV-Beitrag AN" value={d.pv_an} onChange={(v) => sd('pv_an', v)} tooltip={TS.pv_an} />
-              <EditableField label="Weitere Versicherungen" value={d.weitere_versicherungen} onChange={(v) => sd('weitere_versicherungen', v)} tooltip={TS.weitere_versicherungen} />
+              <EditableField label="Weitere Versicherungen" value={d.weitere_versicherungen} onChange={(v) => sd('weitere_versicherungen', v)} tooltip={TS.weitere_versicherungen} readOnly={!!(d.versicherungen_details?.length)} />
+              {(d.versicherungen_details ?? []).map((p, i) => (
+                <DetailZeile
+                  key={i}
+                  posten={p}
+                  placeholder="z.B. Haftpflicht"
+                  onChangeName={(name) => {
+                    const details = [...(d.versicherungen_details ?? [])];
+                    details[i] = { ...details[i], name };
+                    updateSteuerdaten(jahr, { versicherungen_details: details });
+                  }}
+                  onChangeBetrag={(betrag) => {
+                    const details = [...(d.versicherungen_details ?? [])];
+                    details[i] = { ...details[i], betrag };
+                    const summe = details.reduce((s, d) => s + d.betrag, 0);
+                    updateSteuerdaten(jahr, { versicherungen_details: details, weitere_versicherungen: summe });
+                  }}
+                  onDelete={() => {
+                    const details = (d.versicherungen_details ?? []).filter((_, j) => j !== i);
+                    const summe = details.reduce((s, d) => s + d.betrag, 0);
+                    updateSteuerdaten(jahr, { versicherungen_details: details, weitere_versicherungen: summe });
+                  }}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const details: DetailPosten[] = [...(d.versicherungen_details ?? []), { name: '', betrag: 0 }];
+                  updateSteuerdaten(jahr, { versicherungen_details: details });
+                }}
+                className="flex items-center gap-1.5 pl-4 py-1.5 text-sm text-slate-500 hover:text-emerald-400 transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Versicherung hinzufügen
+              </button>
               <EditableField label="Spenden" value={d.spenden} onChange={(v) => sd('spenden', v)} tooltip={TS.spenden} />
+              {(() => {
+                const cfg = getConfig(jahr);
+                const kvGerundet = Math.ceil(d.kv_an_gesamt);
+                const kvKuerzBasis = d.kv_an_regulaer > 0 ? Math.ceil(d.kv_an_regulaer) : kvGerundet;
+                const kvKuerzung = Math.floor(kvKuerzBasis * cfg.krankengeld_kuerzung);
+                const abziehbareKV = kvGerundet - kvKuerzung;
+                const abziehbarePV = Math.ceil(d.pv_an);
+                const vorsorge_basis = abziehbareKV + abziehbarePV;
+                const hoechstbetragBasis = d.krankenversichert === 'privat' ? 2800 : 1900;
+                const hoechstgrenze = d.verheiratet ? hoechstbetragBasis * 2 : hoechstbetragBasis;
+                const spielraum = Math.max(0, hoechstgrenze - vorsorge_basis);
+                const weitereVers = d.weitere_versicherungen;
+                const anrechenbar = Math.min(weitereVers, spielraum);
+                const gesamtRV = Math.min(d.rv_an + d.rv_ag, cfg.max_vorsorge_rv);
+                const anteilRV = Math.ceil(Math.round(gesamtRV) * cfg.vorsorgeAbzug);
+                const abziehbareRV = anteilRV - Math.floor(d.rv_ag);
+                const sonderausgaben = abziehbareRV + vorsorge_basis + anrechenbar + Math.floor(d.spenden);
+                return (
+                  <div className="mt-1 pt-2 space-y-1 text-xs text-slate-500">
+                    <div className="flex justify-between"><span>Abziehbare RV</span><span>{euro(abziehbareRV)}</span></div>
+                    <div className="flex justify-between"><span>Abziehbare KV (nach 4% Kürzung)</span><span>{euro(abziehbareKV)}</span></div>
+                    <div className="flex justify-between"><span>Abziehbare PV</span><span>{euro(abziehbarePV)}</span></div>
+                    <div className="flex justify-between font-medium text-slate-400 pt-1 border-t border-slate-700/20">
+                      <span>Vorsorge-Basis (KV + PV)</span><span>{euro(vorsorge_basis)}</span>
+                    </div>
+                    <div className="flex justify-between"><span>Höchstgrenze weitere Vers.</span><span>{euro(hoechstgrenze)}</span></div>
+                    {weitereVers > 0 && (
+                      <div className={`flex justify-between font-medium ${spielraum > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        <span>Davon anrechenbar</span><span>{euro(anrechenbar)} von {euro(weitereVers)}</span>
+                      </div>
+                    )}
+                    {weitereVers > 0 && spielraum === 0 && (
+                      <p className="text-amber-400/70 pt-0.5">KV + PV übersteigen die {euro(hoechstgrenze)}-Grenze — weitere Versicherungen haben keine Auswirkung</p>
+                    )}
+                    {d.spenden > 0 && <div className="flex justify-between"><span>Spenden</span><span>{euro(Math.floor(d.spenden))}</span></div>}
+                    <div className="flex justify-between font-medium text-slate-400 pt-1 border-t border-slate-700/20">
+                      <span>= Sonderausgaben gesamt</span><span>{euro(sonderausgaben)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </Section>
 
             <Section title="Werbungskosten">
@@ -153,17 +353,85 @@ export default function JahrDetailPage() {
               <EditableField label="Entfernung" value={d.entfernung_km} onChange={(v) => sd('entfernung_km', v)} format="km" tooltip={TS.entfernung_km} />
               <EditableField label="Homeoffice-Tage" value={d.homeoffice_tage} onChange={(v) => sd('homeoffice_tage', v)} format="tage" tooltip={TS.homeoffice_tage} />
               <EditableField label="Arbeitsmittel" value={d.arbeitsmittel} onChange={(v) => sd('arbeitsmittel', v)} tooltip={TS.arbeitsmittel} />
-              <EditableField label="Sonstige WK" value={d.sonstige_werbungskosten} onChange={(v) => sd('sonstige_werbungskosten', v)} tooltip={TS.sonstige_werbungskosten} />
+              <EditableField label="Sonstige WK" value={d.sonstige_werbungskosten} onChange={(v) => sd('sonstige_werbungskosten', v)} tooltip={TS.sonstige_werbungskosten} readOnly={!!(d.sonstige_wk_details?.length)} />
+              {(d.sonstige_wk_details ?? []).map((p, i) => (
+                <DetailZeile
+                  key={i}
+                  posten={p}
+                  placeholder="z.B. Internetkosten"
+                  onChangeName={(name) => {
+                    const details = [...(d.sonstige_wk_details ?? [])];
+                    details[i] = { ...details[i], name };
+                    updateSteuerdaten(jahr, { sonstige_wk_details: details });
+                  }}
+                  onChangeBetrag={(betrag) => {
+                    const details = [...(d.sonstige_wk_details ?? [])];
+                    details[i] = { ...details[i], betrag };
+                    const summe = details.reduce((s, d) => s + d.betrag, 0);
+                    updateSteuerdaten(jahr, { sonstige_wk_details: details, sonstige_werbungskosten: summe });
+                  }}
+                  onDelete={() => {
+                    const details = (d.sonstige_wk_details ?? []).filter((_, j) => j !== i);
+                    const summe = details.reduce((s, d) => s + d.betrag, 0);
+                    updateSteuerdaten(jahr, { sonstige_wk_details: details, sonstige_werbungskosten: summe });
+                  }}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const details: DetailPosten[] = [...(d.sonstige_wk_details ?? []), { name: '', betrag: 0 }];
+                  updateSteuerdaten(jahr, { sonstige_wk_details: details });
+                }}
+                className="flex items-center gap-1.5 pl-4 py-1.5 text-sm text-slate-500 hover:text-emerald-400 transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Werbungskosten hinzufügen
+              </button>
+              {(() => {
+                const cfg = getConfig(jahr);
+                const kmBasis = Math.min(d.entfernung_km, cfg.entfernungspauschale_erhoeht_ab_km - 1);
+                const kmErhoeht = Math.max(0, d.entfernung_km - kmBasis);
+                const entfPausch = d.fahrt_tage > 0 && d.entfernung_km > 0
+                  ? Math.ceil(d.fahrt_tage * (kmBasis * cfg.entfernungspauschale_basis + kmErhoeht * cfg.entfernungspauschale_erhoeht))
+                  : 0;
+                const hoPausch = Math.min(d.homeoffice_tage * cfg.homeofficePauschaleProTag, cfg.homeofficePauschaleMaxTage * cfg.homeofficePauschaleProTag);
+                const summe = entfPausch + d.arbeitsmittel + d.sonstige_werbungskosten + hoPausch;
+                const pauschale = cfg.werbungskostenpauschale;
+                const diff = summe - pauschale;
+                const ueberPauschale = diff > 0;
+                return (
+                  <div className="mt-1 pt-2 space-y-1 text-xs text-slate-500">
+                    <div className="flex justify-between"><span>Entfernungspauschale</span><span>{euro(entfPausch)}</span></div>
+                    <div className="flex justify-between"><span>Homeoffice-Pauschale</span><span>{euro(hoPausch)}</span></div>
+                    {d.arbeitsmittel > 0 && <div className="flex justify-between"><span>Arbeitsmittel</span><span>{euro(d.arbeitsmittel)}</span></div>}
+                    {d.sonstige_werbungskosten > 0 && <div className="flex justify-between"><span>Sonstige WK</span><span>{euro(d.sonstige_werbungskosten)}</span></div>}
+                    <div className="flex justify-between font-medium text-slate-400 pt-1 border-t border-slate-700/20">
+                      <span>Summe</span><span>{euro(summe)}</span>
+                    </div>
+                    <div className="flex justify-between"><span>Pauschale {jahr}</span><span>{euro(pauschale)}</span></div>
+                    <div className={`flex justify-between font-medium pt-1 border-t border-slate-700/20 ${ueberPauschale ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      <span>{ueberPauschale ? 'Über Pauschale' : 'Unter Pauschale'}</span>
+                      <span>{ueberPauschale ? '+' : ''}{euro(diff)}</span>
+                    </div>
+                    {!ueberPauschale && (
+                      <p className="text-amber-400/70 pt-0.5">Kein Vorteil — Pauschale wird automatisch angesetzt</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </Section>
+
+            <Section title="Steuerermäßigungen (§ 35a)">
               <EditableField label="Haushaltsnahe DL" value={d.haushaltsnahe_dienstleistungen} onChange={(v) => sd('haushaltsnahe_dienstleistungen', v)} tooltip={TS.haushaltsnahe_dienstleistungen} />
               <EditableField label="Handwerker" value={d.handwerkerleistungen} onChange={(v) => sd('handwerkerleistungen', v)} tooltip={TS.handwerkerleistungen} />
             </Section>
 
-            {(d.auslandseinkuenfte > 0 || d.auslands_sv > 0) && (
-              <Section title="Auslandsarbeit">
-                <EditableField label="Auslandseinkünfte brutto" value={d.auslandseinkuenfte} onChange={(v) => sd('auslandseinkuenfte', v)} tooltip={TS.auslandseinkuenfte} />
-                <EditableField label="Auslands-SV AN" value={d.auslands_sv} onChange={(v) => sd('auslands_sv', v)} tooltip={TS.auslands_sv} />
-              </Section>
-            )}
+            <Section title="Auslandsarbeit">
+              <EditableField label="Auslandseinkünfte brutto" value={d.auslandseinkuenfte} onChange={(v) => sd('auslandseinkuenfte', v)} tooltip={TS.auslandseinkuenfte} />
+              <EditableField label="Auslands-SV AN" value={d.auslands_sv} onChange={(v) => sd('auslands_sv', v)} tooltip={TS.auslands_sv} />
+              <EditableField label="Anrechenbare Auslandssteuer" value={d.anrechenbare_auslandssteuer} onChange={(v) => sd('anrechenbare_auslandssteuer', v)} tooltip={TS.anrechenbare_auslandssteuer} />
+            </Section>
 
             <Section title="Bescheid">
               <EditableField label="Erstattung / Nachzahlung" value={d.erstattung_bescheid ?? 0} onChange={(v) => sd('erstattung_bescheid' as keyof typeof d, v)} tooltip={TS.erstattung_bescheid} />

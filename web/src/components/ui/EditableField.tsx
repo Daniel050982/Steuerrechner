@@ -91,9 +91,7 @@ export function EditableField({
           className={`flex items-center gap-1.5 text-sm font-medium ${bold ? 'font-bold' : ''} ${colorClass} ${!readOnly ? 'hover:text-emerald-400 cursor-pointer' : 'cursor-default'} transition`}
         >
           <span>{formatValue(value)}</span>
-          {!readOnly && (
-            <Pencil className="w-3 h-3 text-slate-600 opacity-0 group-hover:opacity-100 transition" />
-          )}
+          <Pencil className={`w-3 h-3 text-slate-600 transition ${readOnly ? 'invisible' : 'opacity-0 group-hover:opacity-100'}`} />
         </button>
       )}
     </div>
