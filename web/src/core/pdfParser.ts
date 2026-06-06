@@ -366,13 +366,19 @@ export function parseLStB(text: string): LStBErgebnis {
   if (amounts.length === 0) return { typ: 'lstb', jahr, daten };
 
   // --- Erster Block: Hauptfelder ---
-  // Die ersten Beträge im Dokument sind Brutto, LSt und weitere Felder.
-  // Wichtig: ERSTEN Block nehmen (nicht größten!), weil Brutto/LSt immer zuerst kommen.
+  // LStB-Zahlenblock hat feste Reihenfolge: Zeile 3, 4, 5, 6, dann variable Felder.
+  // Nur ausgefüllte Felder erscheinen als Werte.
   const firstBlock = findFirstAmountsBlock(text);
-  const mainAmounts = firstBlock.filter(v => v > 100);
-  if (mainAmounts.length >= 1) daten.bruttogehalt = mainAmounts[0];
-  if (mainAmounts.length >= 2) daten.lohnsteuer = mainAmounts[1];
-  daten.soli_lohn = 0;
+  if (firstBlock.length >= 1) daten.bruttogehalt = firstBlock[0];
+  if (firstBlock.length >= 2) daten.lohnsteuer = firstBlock[1];
+
+  // Soli (Zeile 5): Immer Position 2 im Block, typisch < 1000 und < LSt
+  if (firstBlock.length >= 3 && firstBlock[2] < (firstBlock[1] ?? Infinity) * 0.1) {
+    daten.soli_lohn = firstBlock[2];
+  } else {
+    daten.soli_lohn = 0;
+  }
+
   daten.kirchensteuer_lohn = 0;
 
   // --- SV-Block: Finde RV-Paar (zwei identische Beträge) ---
@@ -389,20 +395,19 @@ export function parseLStB(text: string): LStBErgebnis {
     }
   }
 
-  // --- PV AN und DBA aus dem ersten Block ---
-  // Nach Brutto und LSt bleiben im ersten Block weitere Beträge übrig.
-  // Diese sind typisch: Feld 16a (DBA), evtl. 17/18, Feld 26 (PV AN).
-  // Identifikation: prüfe ob "DBA" oder "16." im Dokument erwähnt wird.
-  const hasDBA = /DBA|Doppelbesteuerungsabkommen/i.test(text);
-  const remainingFirstBlock = mainAmounts.slice(2); // Nach Brutto + LSt
-  const svValues = new Set([daten.rv_ag, daten.rv_an, daten.kv_an_regulaer].filter(Boolean));
-
-  // Filtere SV-Werte raus (falls im selben Block)
-  const extraValues = remainingFirstBlock.filter(v => !svValues.has(v));
-
-  if (hasDBA && extraValues.length >= 1) {
-    // Erster verbleibender Wert = DBA (Feld 16a kommt im Formular vor Feld 26)
-    daten.auslandseinkuenfte = extraValues[0];
+  // --- DBA (Feld 16a) ---
+  // Der Block enthält nach Brutto/LSt/Soli weitere Werte.
+  // DBA wird erkannt über den verbleibenden Block: Werte nach Position 2 (Soli),
+  // die NICHT zu SV gehören (RV/KV/PV) und die im Text von "16" + "DBA" begleitet werden.
+  const hasDBA = /16\.\s*Steuerfreier|16\s*a\)|Doppelbesteuerungsabkommen\s*\(DBA\)/i.test(text);
+  const soliIdx = daten.soli_lohn > 0 ? 3 : 2; // nach Soli kommt der nächste Wert
+  if (hasDBA && firstBlock.length > soliIdx) {
+    // DBA-Betrag: der erste Wert nach Brutto/LSt/Soli der kein SV-Wert ist
+    const candidate = firstBlock[soliIdx];
+    // Plausibilität: DBA-Betrag sollte nicht identisch zu RV sein
+    if (candidate > 0 && candidate !== daten.rv_ag && candidate !== daten.rv_an) {
+      daten.auslandseinkuenfte = candidate;
+    }
   }
 
   // PV AN: der Wert der in der Nähe von "Pflege" oder "26." steht
@@ -426,9 +431,9 @@ export function parseLStB(text: string): LStBErgebnis {
     }
   }
 
-  // Fallback: DBA auch ohne ersten Block suchen
+  // Fallback: DBA mit engem Radius suchen (nicht den gesamten Text abgrasen)
   if (!daten.auslandseinkuenfte) {
-    daten.auslandseinkuenfte = amountNear(text, /DBA|Doppelbesteuerungsabkommen/i, 2000);
+    daten.auslandseinkuenfte = amountNear(text, /16\s*[a.)]\s*(?:DBA|Doppelbesteuerungsabkommen)/i, 200);
   }
 
   return { typ: 'lstb', jahr, daten };
