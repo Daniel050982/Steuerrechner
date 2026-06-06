@@ -6,7 +6,8 @@ import { Card } from '../components/ui/Card';
 import { EditableField } from '../components/ui/EditableField';
 import { PdfUpload } from '../components/PdfUpload';
 import { useDaten } from '../store/DatenContext';
-import type { DetailPosten } from '../data/steuerdaten';
+import type { DetailPosten, HistorischeEingabe } from '../data/steuerdaten';
+import type { HistorischesErgebnis } from '../data/ergebnisse';
 import { euro, prozent } from '../utils/format';
 import { TOOLTIPS_STEUERDATEN as TS, TOOLTIPS_ERGEBNIS as TE } from '../data/tooltips';
 import { getConfig } from '../core/config';
@@ -100,6 +101,47 @@ function DetailZeile({ posten, placeholder, onChangeName, onChangeBetrag, onDele
   );
 }
 
+function VergleichZeile({ label, berechnung, bescheid }: { label: string; berechnung: number; bescheid: number | null }) {
+  if (bescheid == null) return null;
+  const diff = berechnung - bescheid;
+  const diffColor = Math.abs(diff) < 1 ? 'text-slate-500' : diff > 0 ? 'text-red-400' : 'text-emerald-400';
+  const matchIcon = Math.abs(diff) < 1 ? 'text-emerald-400' : 'text-amber-400';
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center py-1 border-b border-slate-700/30 last:border-0 text-sm">
+      <span className="text-slate-400">{label}</span>
+      <span className="text-right text-slate-200 tabular-nums w-24">{euro(berechnung)}</span>
+      <span className="text-right text-slate-200 tabular-nums w-24">{euro(bescheid)}</span>
+      <span className={`text-right tabular-nums w-20 font-medium ${diffColor}`}>
+        {Math.abs(diff) < 1 ? <span className={matchIcon}>--</span> : euro(diff)}
+      </span>
+    </div>
+  );
+}
+
+function BescheidVergleich({ d, e }: { d: HistorischeEingabe; e: HistorischesErgebnis }) {
+  const wk = e.werbungskosten;
+  const einkuenfte = Math.floor(e.bruttogehalt - wk);
+  const erstattungBerechnet = e.erstattung_nachzahlung;
+  const erstattungBescheid = d.erstattung_bescheid;
+
+  return (
+    <div>
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center pb-1 mb-1 border-b border-slate-600 text-xs text-slate-500">
+        <span />
+        <span className="text-right w-24">Berechnung</span>
+        <span className="text-right w-24">Bescheid</span>
+        <span className="text-right w-20">Differenz</span>
+      </div>
+      <VergleichZeile label="Einkünfte" berechnung={einkuenfte} bescheid={d.bescheid_einkuenfte} />
+      <VergleichZeile label="Sonderausgaben" berechnung={e.sonderausgaben} bescheid={d.bescheid_sonderausgaben} />
+      <VergleichZeile label="zvE" berechnung={e.zvE_inland} bescheid={d.bescheid_zvE} />
+      <VergleichZeile label="Einkommensteuer" berechnung={e.einkommensteuer} bescheid={d.bescheid_est} />
+      <VergleichZeile label="Solidaritätszuschlag" berechnung={Math.round((e.steuerlast_gesamt - e.einkommensteuer) * 100) / 100} bescheid={d.bescheid_soli} />
+      <VergleichZeile label="Erstattung / Nachzahlung" berechnung={erstattungBerechnet} bescheid={erstattungBescheid} />
+    </div>
+  );
+}
+
 export default function JahrDetailPage() {
   const { jahr: jahrStr } = useParams();
   const jahr = Number(jahrStr);
@@ -117,6 +159,7 @@ export default function JahrDetailPage() {
   }
 
   const erstattung = e.erstattung_nachzahlung > 0;
+  const hasBescheid = d.bescheid_zvE != null || d.bescheid_est != null || d.bescheid_einkuenfte != null;
   const sd = (field: keyof typeof d, value: number) => updateSteuerdaten(jahr, { [field]: value });
   const se = (field: keyof typeof e, value: number) => updateErgebnis(jahr, { [field]: value });
 
@@ -437,6 +480,14 @@ export default function JahrDetailPage() {
               <EditableField label="Erstattung / Nachzahlung" value={d.erstattung_bescheid ?? 0} onChange={(v) => sd('erstattung_bescheid' as keyof typeof d, v)} tooltip={TS.erstattung_bescheid} />
               <EditableField label="Nachzahlungszinsen" value={d.nachzahlungszinsen} onChange={(v) => sd('nachzahlungszinsen', v)} tooltip={TS.nachzahlungszinsen} />
               <EditableField label="Verspätungszuschlag" value={d.verspaetungszuschlag} onChange={(v) => sd('verspaetungszuschlag', v)} tooltip={TS.verspaetungszuschlag} />
+              <div className="border-t border-slate-700/30 mt-2 pt-2">
+                <p className="text-xs text-slate-500 mb-2">Werte aus dem Einkommensteuerbescheid:</p>
+                <EditableField label="Einkünfte" value={d.bescheid_einkuenfte ?? 0} onChange={(v) => updateSteuerdaten(jahr, { bescheid_einkuenfte: v || null })} />
+                <EditableField label="Sonderausgaben" value={d.bescheid_sonderausgaben ?? 0} onChange={(v) => updateSteuerdaten(jahr, { bescheid_sonderausgaben: v || null })} />
+                <EditableField label="zvE" value={d.bescheid_zvE ?? 0} onChange={(v) => updateSteuerdaten(jahr, { bescheid_zvE: v || null })} />
+                <EditableField label="Einkommensteuer" value={d.bescheid_est ?? 0} onChange={(v) => updateSteuerdaten(jahr, { bescheid_est: v || null })} />
+                <EditableField label="Solidaritätszuschlag" value={d.bescheid_soli ?? 0} onChange={(v) => updateSteuerdaten(jahr, { bescheid_soli: v || null })} />
+              </div>
             </Section>
           </div>
 
@@ -489,6 +540,12 @@ export default function JahrDetailPage() {
               <EditableField label="Zinsen & Zuschläge" value={e.zinsen_zuschlaege} onChange={(v) => se('zinsen_zuschlaege', v)} tooltip={TE.zinsen_zuschlaege} />
               <EditableField label="Abweichung zum Bescheid" value={e.abweichung_bescheid ?? 0} onChange={(v) => se('abweichung_bescheid', v)} tooltip={TE.abweichung_bescheid} />
             </Section>
+
+            {hasBescheid && (
+              <Section title="Bescheid-Vergleich">
+                <BescheidVergleich d={d} e={e} />
+              </Section>
+            )}
           </div>
         </div>
       </main>

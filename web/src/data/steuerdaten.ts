@@ -62,6 +62,12 @@ export interface HistorischeEingabe {
   erstattung_bescheid: number | null;
   nachzahlungszinsen: number;
   verspaetungszuschlag: number;
+  // Bescheid-Vergleich (Werte aus dem Einkommensteuerbescheid)
+  bescheid_einkuenfte: number | null;
+  bescheid_sonderausgaben: number | null;
+  bescheid_zvE: number | null;
+  bescheid_est: number | null;
+  bescheid_soli: number | null;
 }
 
 export const steuerdaten: Record<number, HistorischeEingabe> = {
@@ -112,6 +118,11 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: 880.92,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
+    bescheid_einkuenfte: 5250,
+    bescheid_sonderausgaben: 3158,
+    bescheid_zvE: 2092,
+    bescheid_est: 0,
+    bescheid_soli: 0,
   },
 
   2020: {
@@ -161,6 +172,11 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: 518.98,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
+    bescheid_einkuenfte: null,
+    bescheid_sonderausgaben: null,
+    bescheid_zvE: null,
+    bescheid_est: null,
+    bescheid_soli: null,
   },
 
   2021: {
@@ -210,6 +226,11 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: -2813.00,
     nachzahlungszinsen: 83.00,
     verspaetungszuschlag: 50.00,
+    bescheid_einkuenfte: null,
+    bescheid_sonderausgaben: null,
+    bescheid_zvE: null,
+    bescheid_est: null,
+    bescheid_soli: null,
   },
 
   2022: {
@@ -259,6 +280,11 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: -507.33,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 125.00,
+    bescheid_einkuenfte: null,
+    bescheid_sonderausgaben: null,
+    bescheid_zvE: null,
+    bescheid_est: null,
+    bescheid_soli: null,
   },
 
   2023: {
@@ -308,6 +334,11 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: -683.91,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
+    bescheid_einkuenfte: null,
+    bescheid_sonderausgaben: null,
+    bescheid_zvE: null,
+    bescheid_est: null,
+    bescheid_soli: null,
   },
 
   2024: {
@@ -357,6 +388,11 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: null,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
+    bescheid_einkuenfte: null,
+    bescheid_sonderausgaben: null,
+    bescheid_zvE: null,
+    bescheid_est: null,
+    bescheid_soli: null,
   },
 
   2025: {
@@ -406,5 +442,10 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: null,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
+    bescheid_einkuenfte: null,
+    bescheid_sonderausgaben: null,
+    bescheid_zvE: null,
+    bescheid_est: null,
+    bescheid_soli: null,
   },
 };

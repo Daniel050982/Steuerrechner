@@ -430,6 +430,11 @@ export function berechne(eingabe: SteuerEingabe): SteuerErgebnis {
     erstattung_bescheid: null,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
+    bescheid_einkuenfte: null,
+    bescheid_sonderausgaben: null,
+    bescheid_zvE: null,
+    bescheid_est: null,
+    bescheid_soli: null,
   };
 
   const config = getConfig(eingabe.jahr);
