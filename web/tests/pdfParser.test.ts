@@ -116,6 +116,22 @@ const tests: TestCase[] = [
     },
     text: `Ausdruck der Elektronischen Lohnsteuerbescheinigung für 2025  Nachstehende Daten wurden an den Data-Service übertragen  92552 Teunz Lindenweg 13 TGW Systems Integration GmbH 56.230,61 8.740,11 1.062,63 1.132,00 1.349,53 0 01.01. - 31.12.2025  1. Bescheinigungszeitraum 2. Zeiträume ohne Anspruch auf Arbeitslohn 3. Bruttoarbeitslohn einschl. Sachbezüge 4. Einbehaltene Lohnsteuer von 3. 5. Einbehaltener Solidaritätszuschlag von 3.  7. Einbehaltene Kirchensteuer des Ehegatten  6. Einbehaltene Kirchensteuer des Arbeitnehmers von 3. 8. In 3. enthaltene Versorgungsbezüge  15. Leistungen die dem Progressionsvorbehalt unterliegen  16. Steuerfreier Arbeitslohn nach  a) Doppelbesteuerungsabkommen (DBA)  26. Arbeitnehmerbeiträge zur sozialen Pflegeversicherung  22. Arbeitgeber- anteil/-zuschuss 23. Arbeitnehmer- anteil 24. Steuerfreie Arbeitgeber- zuschüsse 25. Arbeitnehmerbeiträge zur gesetzlichen Krankenversicherung 27. Arbeitnehmerbeiträge zur Arbeitslosenversicherung  5.229,45 5.229,45 4.793,66 731,02`,
   },
+  {
+    name: 'LStB TGW 2019 (Soli+KiSt, kein DBA)',
+    expectedTyp: 'lstb',
+    expectedJahr: 2019,
+    expected: {
+      bruttogehalt: 6250.00,
+      lohnsteuer: 835.00,
+      soli_lohn: 45.92,
+      kirchensteuer_lohn: 110.94,
+      rv_an: 581.25,
+      rv_ag: 581.25,
+      kv_an_regulaer: 478.13,
+      auslandseinkuenfte: 0,
+    },
+    text: `Ausdruck der Elektronischen Lohnsteuerbescheinigung für 2019  Nachstehende Daten wurden an den Data-Service übertragen  92552 Teunz Lindenweg 13 TGW Software Services GmbH 6.250,00 835,00 45,92 110,94 0 01.11. - 31.12.2019  1. Bescheinigungszeitraum 2. Zeiträume ohne Anspruch auf Arbeitslohn 3. Bruttoarbeitslohn einschl. Sachbezüge ohne 9. und 10. 4. Einbehaltene Lohnsteuer von 3. 5. Einbehaltener Solidaritätszuschlag von 3.  7. Einbehaltene Kirchensteuer des Ehegatten/Lebenspartners von 3. (nur bei Konfessionsverschiedenheit)  6. Einbehaltene Kirchensteuer des Arbeitnehmers von 3. 8. In 3. enthaltene Versorgungsbezüge 9. Ermäßigt besteuerte Versorgungsbezüge für mehrere Kalenderjahre 10. Ermäßigt besteuerter Arbeitslohn für mehrere Kalenderjahre (ohne 9.) und ermäßigt besteuerte Entschädigungen 11. Einbehaltene Lohnsteuer von 9. und 10. 12. Einbehaltener Solidaritätszuschlag von 9. und 10. 13. Einbehaltene Kirchensteuer des Arbeitnehmers von 9. und 10.  14. Einbehaltene Kirchensteuer des Ehegatten/ Lebenspartners von 9. und 10. (nur bei Konfessionsversch.) 15. (Saison-)Kurzarbeitergeld, Zuschuss zum Mutterschaftsgeld, Verdienstausfallentschädigung (Infektionsschutzgesetz), Aufstockungsbetrag und Altersteilzeitzuschlag  16. Steuerfreier Arbeitslohn nach  a) Doppelbesteuerungsabkommen (DBA) b) Auslandstätigkeitserlass  17. Steuerfreie Arbeitgeberleistungen für Fahrten zwischen Wohnung und Tätigkeitsstätte 18. Pauschalbesteuerte Arbeitgeberleistungen für Fahrten zwischen Wohnung und Tätigkeitsstätte 19. Steuerpflichtige Entschädigungen und Arbeitslohn für mehrere Kalenderjahre, die nicht ermäßigt besteuert wurden – in 3. enthalten 20. Steuerfreie Verpflegungszuschüsse bei Auswärtstätigkeit 21. Steuerfreie Arbeitgeberleistungen bei doppelter Haushaltsführung 26. Arbeitnehmerbeiträge zur sozialen Pflege- versicherung Finanzamt, an das die Lohnsteuer abgeführt wurde (Name und dessen vierstellige Nr.) Großbuchstaben (S, F, M, FR) 22. Arbeitgeber- anteil/ -zuschuss 23. Arbeitnehmer- anteil 24. Steuerfreie Arbeitgeber- zuschüsse 25. Arbeitnehmerbeiträge zur gesetzlichen Krankenversicherung 27. Arbeitnehmerbeiträge zur Arbeitslosenversicherung  28. Beiträge zur privaten Kranken- und Pflege- Pflichtversicherung oder Mindestvorsorgepauschale  581,25 581,25 478,13 78,13`,
+  },
 ];
 
 // ---------------------------------------------------------------------------

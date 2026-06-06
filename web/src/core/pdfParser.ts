@@ -372,22 +372,40 @@ export function parseLStB(text: string): LStBErgebnis {
   if (firstBlock.length >= 1) daten.bruttogehalt = firstBlock[0];
   if (firstBlock.length >= 2) daten.lohnsteuer = firstBlock[1];
 
-  // Soli (Zeile 5): Immer Position 2 im Block, typisch < 1000 und < LSt
-  if (firstBlock.length >= 3 && firstBlock[2] < (firstBlock[1] ?? Infinity) * 0.1) {
+  // Soli (Zeile 5): Position 2 im Block. Soli ist max 5.5% der LSt.
+  const lst = daten.lohnsteuer ?? 0;
+  if (firstBlock.length >= 3 && lst > 0 && firstBlock[2] < lst * 0.06) {
     daten.soli_lohn = firstBlock[2];
   } else {
     daten.soli_lohn = 0;
   }
 
+  // Kirchensteuer und DBA hängen davon ab, ob Soli vorhanden ist.
+  // LStB-Formularreihenfolge: 3(Brutto), 4(LSt), 5(Soli), 6(KiSt), ..., 16a(DBA)
+  // Im Block stehen nur ausgefüllte Felder.
   daten.kirchensteuer_lohn = 0;
+  if (daten.soli_lohn > 0) {
+    // Soli vorhanden → nächster Wert (Position 3) ist KiSt (Feld 6), wenn < 15% LSt
+    if (firstBlock.length > 3 && firstBlock[3] > 0 && firstBlock[3] < lst * 0.15) {
+      daten.kirchensteuer_lohn = firstBlock[3];
+    }
+  } else {
+    // Soli = 0 → Position 2 könnte KiSt oder DBA sein
+    // KiSt ist max 9% der LSt. DBA ist typisch > 10% der LSt.
+    if (firstBlock.length > 2 && firstBlock[2] > 0 && lst > 0) {
+      if (firstBlock[2] < lst * 0.1) {
+        daten.kirchensteuer_lohn = firstBlock[2];
+      }
+    }
+  }
 
   // --- SV-Block: Finde RV-Paar (zwei identische Beträge) ---
   let rvIdx = -1;
   for (let i = 0; i < amounts.length - 1; i++) {
-    if (Math.abs(amounts[i].value - amounts[i + 1].value) < 0.01 && amounts[i].value > 500) {
+    if (Math.abs(amounts[i].value - amounts[i + 1].value) < 0.01 && amounts[i].value > 100) {
       daten.rv_ag = amounts[i].value;
       daten.rv_an = amounts[i + 1].value;
-      if (i + 2 < amounts.length && amounts[i + 2].value > 500) {
+      if (i + 2 < amounts.length && amounts[i + 2].value > 100) {
         daten.kv_an_regulaer = amounts[i + 2].value;
       }
       rvIdx = i;
@@ -396,16 +414,11 @@ export function parseLStB(text: string): LStBErgebnis {
   }
 
   // --- DBA (Feld 16a) ---
-  // Der Block enthält nach Brutto/LSt/Soli weitere Werte.
-  // DBA wird erkannt über den verbleibenden Block: Werte nach Position 2 (Soli),
-  // die NICHT zu SV gehören (RV/KV/PV) und die im Text von "16" + "DBA" begleitet werden.
-  const hasDBA = /16\.\s*Steuerfreier|16\s*a\)|Doppelbesteuerungsabkommen\s*\(DBA\)/i.test(text);
-  const soliIdx = daten.soli_lohn > 0 ? 3 : 2; // nach Soli kommt der nächste Wert
-  if (hasDBA && firstBlock.length > soliIdx) {
-    // DBA-Betrag: der erste Wert nach Brutto/LSt/Soli der kein SV-Wert ist
-    const candidate = firstBlock[soliIdx];
-    // Plausibilität: DBA-Betrag sollte nicht identisch zu RV sein
-    if (candidate > 0 && candidate !== daten.rv_ag && candidate !== daten.rv_an) {
+  // Wenn Soli=0 und Position 2 im Block >= 10% der LSt → DBA-Kandidat
+  if (daten.soli_lohn === 0 && !daten.kirchensteuer_lohn && firstBlock.length > 2 && lst > 0) {
+    const candidate = firstBlock[2];
+    if (candidate > 0 && candidate >= lst * 0.1
+        && candidate !== daten.rv_ag && candidate !== daten.rv_an) {
       daten.auslandseinkuenfte = candidate;
     }
   }
@@ -431,9 +444,13 @@ export function parseLStB(text: string): LStBErgebnis {
     }
   }
 
-  // Fallback: DBA mit engem Radius suchen (nicht den gesamten Text abgrasen)
+  // DBA: Suche Betrag in unmittelbarer Nähe des "a) Doppelbesteuerungsabkommen (DBA)"-Labels.
+  // maxDist eng halten (100 Zeichen), weil der nächste Betrag oft zum SV-Block gehört.
   if (!daten.auslandseinkuenfte) {
-    daten.auslandseinkuenfte = amountNear(text, /16\s*[a.)]\s*(?:DBA|Doppelbesteuerungsabkommen)/i, 200);
+    const dbaVal = amountNear(text, /a\)\s*Doppelbesteuerungsabkommen\s*\(DBA\)/i, 100);
+    if (dbaVal > 0 && dbaVal !== daten.rv_ag && dbaVal !== daten.rv_an && dbaVal !== daten.kv_an_regulaer) {
+      daten.auslandseinkuenfte = dbaVal;
+    }
   }
 
   return { typ: 'lstb', jahr, daten };
