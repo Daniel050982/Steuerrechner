@@ -124,7 +124,7 @@ const tests: TestCase[] = [
       bruttogehalt: 6250.00,
       lohnsteuer: 835.00,
       soli_lohn: 45.92,
-      kirchensteuer_lohn: 110.94,
+      kirchensteuer_lohn: 0,
       rv_an: 581.25,
       rv_ag: 581.25,
       kv_an_regulaer: 478.13,

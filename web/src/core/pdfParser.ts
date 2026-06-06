@@ -380,27 +380,10 @@ export function parseLStB(text: string): LStBErgebnis {
     daten.soli_lohn = 0;
   }
 
-  // Kirchensteuer und DBA hängen davon ab, ob Soli vorhanden ist.
-  // LStB-Formularreihenfolge: 3(Brutto), 4(LSt), 5(Soli), 6(KiSt), ..., 16a(DBA)
-  // Im Block stehen nur ausgefüllte Felder.
-  daten.kirchensteuer_lohn = 0;
-  if (daten.soli_lohn > 0) {
-    // Soli vorhanden → nächster Wert (Position 3) ist KiSt (Feld 6), wenn < 15% LSt
-    if (firstBlock.length > 3 && firstBlock[3] > 0 && firstBlock[3] < lst * 0.15) {
-      daten.kirchensteuer_lohn = firstBlock[3];
-    }
-  } else {
-    // Soli = 0 → Position 2 könnte KiSt oder DBA sein
-    // KiSt ist max 9% der LSt. DBA ist typisch > 10% der LSt.
-    if (firstBlock.length > 2 && firstBlock[2] > 0 && lst > 0) {
-      if (firstBlock[2] < lst * 0.1) {
-        daten.kirchensteuer_lohn = firstBlock[2];
-      }
-    }
-  }
+  // KiSt (Feld 6) über Textlabel erkennen — Blockposition ist mehrdeutig.
+  daten.kirchensteuer_lohn = amountNear(text, /6\.\s*Einbehaltene Kirchensteuer des Arbeitnehmers/i, 300);
 
   // --- SV-Block: Finde RV-Paar (zwei identische Beträge) ---
-  let rvIdx = -1;
   for (let i = 0; i < amounts.length - 1; i++) {
     if (Math.abs(amounts[i].value - amounts[i + 1].value) < 0.01 && amounts[i].value > 100) {
       daten.rv_ag = amounts[i].value;
@@ -408,48 +391,35 @@ export function parseLStB(text: string): LStBErgebnis {
       if (i + 2 < amounts.length && amounts[i + 2].value > 100) {
         daten.kv_an_regulaer = amounts[i + 2].value;
       }
-      rvIdx = i;
       break;
     }
   }
 
   // --- DBA (Feld 16a) ---
-  // Wenn Soli=0 und Position 2 im Block >= 10% der LSt → DBA-Kandidat
-  if (daten.soli_lohn === 0 && !daten.kirchensteuer_lohn && firstBlock.length > 2 && lst > 0) {
+  // Im Block stehen nach Brutto/LSt nur ausgefüllte Felder — leere werden übersprungen.
+  // Wenn Soli > 0, enthält der Block danach typisch PV, KiSt oder andere Abzüge,
+  // die NICHT DBA sind. DBA aus dem Block nur nehmen wenn Soli = 0.
+  if (daten.soli_lohn === 0 && firstBlock.length > 2 && lst > 0) {
     const candidate = firstBlock[2];
-    if (candidate > 0 && candidate >= lst * 0.1
-        && candidate !== daten.rv_ag && candidate !== daten.rv_an) {
+    const svValues = new Set([daten.rv_ag, daten.rv_an, daten.kv_an_regulaer].filter(Boolean));
+    if (candidate > 0 && !svValues.has(candidate) && candidate < (daten.bruttogehalt ?? Infinity)) {
       daten.auslandseinkuenfte = candidate;
     }
   }
 
-  // PV AN: der Wert der in der Nähe von "Pflege" oder "26." steht
-  // In der LStB ist PV AN typisch der letzte Wert im ersten Block vor Soli (0)
-  // Schaue nach einem Wert im Bereich 200-3000 der weder Brutto, LSt, RV, KV, noch DBA ist
+  // PV AN: letzter unzugewiesener Wert im Block zwischen 50-5000
   const assignedValues = new Set([
-    daten.bruttogehalt, daten.lohnsteuer,
-    daten.rv_ag, daten.rv_an, daten.kv_an_regulaer,
-    daten.auslandseinkuenfte,
+    daten.bruttogehalt, daten.lohnsteuer, daten.soli_lohn,
+    daten.kirchensteuer_lohn, daten.rv_ag, daten.rv_an,
+    daten.kv_an_regulaer, daten.auslandseinkuenfte,
   ].filter(Boolean));
-
-  // PV AN ist im Formular das letzte Feld der linken Spalte (Feld 26),
-  // also der LETZTE unzugewiesene Wert im ersten Block
-  if (/26\.\s+Arbeitnehmer|Pflege/i.test(text)) {
+  if (/26\.\s*Arbeitnehmer|Pflege/i.test(text)) {
     for (let i = firstBlock.length - 1; i >= 0; i--) {
       const v = firstBlock[i];
-      if (v >= 200 && v <= 5000 && !assignedValues.has(v)) {
+      if (v >= 50 && v <= 5000 && !assignedValues.has(v)) {
         daten.pv_an = v;
         break;
       }
-    }
-  }
-
-  // DBA: Suche Betrag in unmittelbarer Nähe des "a) Doppelbesteuerungsabkommen (DBA)"-Labels.
-  // maxDist eng halten (100 Zeichen), weil der nächste Betrag oft zum SV-Block gehört.
-  if (!daten.auslandseinkuenfte) {
-    const dbaVal = amountNear(text, /a\)\s*Doppelbesteuerungsabkommen\s*\(DBA\)/i, 100);
-    if (dbaVal > 0 && dbaVal !== daten.rv_ag && dbaVal !== daten.rv_an && dbaVal !== daten.kv_an_regulaer) {
-      daten.auslandseinkuenfte = dbaVal;
     }
   }
 
