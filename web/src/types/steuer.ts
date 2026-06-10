@@ -26,6 +26,7 @@ export interface JahresConfig {
   entfernungspauschale_erhoeht: number;
   entfernungspauschale_erhoeht_ab_km: number;
   krankengeld_kuerzung: number;
+  sonderausgabenPauschbetrag: number;
   soli_freigrenze: number;
   kirchensteuerSatz: number;
   tarif: TarifConfig;

@@ -3,9 +3,12 @@ import { SteuerProvider } from './store/SteuerContext';
 import { DatenProvider } from './store/DatenContext';
 import UebersichtPage from './pages/UebersichtPage';
 import JahrDetailPage from './pages/JahrDetailPage';
+import BescheidPage from './pages/BescheidPage';
+import VergleichPage from './pages/VergleichPage';
 import BankenPage from './pages/BankenPage';
 import RechnerPage from './pages/RechnerPage';
 import ErgebnisPage from './pages/ErgebnisPage';
+import VergleichUebersichtPage from './pages/VergleichUebersichtPage';
 
 export default function App() {
   return (
@@ -15,6 +18,9 @@ export default function App() {
           <Routes>
             <Route path="/" element={<UebersichtPage />} />
             <Route path="/jahr/:jahr" element={<JahrDetailPage />} />
+            <Route path="/jahr/:jahr/bescheid" element={<BescheidPage />} />
+            <Route path="/jahr/:jahr/vergleich" element={<VergleichPage />} />
+            <Route path="/vergleich" element={<VergleichUebersichtPage />} />
             <Route path="/banken" element={<BankenPage />} />
             <Route path="/rechner" element={<RechnerPage />} />
             <Route path="/ergebnis" element={<ErgebnisPage />} />

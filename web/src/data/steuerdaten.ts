@@ -1,6 +1,17 @@
+import type { BescheidDaten } from './bescheid';
+
 export interface DetailPosten {
   name: string;
   betrag: number;
+}
+
+export interface LStBEintrag {
+  name: string;
+  rv_an: number;
+  rv_ag: number;
+  kv_an: number;
+  kv_regulaer: number;
+  pv_an: number;
 }
 
 /** Historische Eingabedaten aus dem Google-Sheet (Steuerdaten-Tab) */
@@ -40,13 +51,18 @@ export interface HistorischeEingabe {
   pv_an: number;
   kv_ag: number;
   pv_ag: number;
+  erstattete_rv: number;
+  beitragsrueckerstattung_kv: number;
   weitere_versicherungen: number;
   versicherungen_details?: DetailPosten[];
+  lstb_details?: LStBEintrag[];
   spenden: number;
   // Werbungskosten
   fahrt_tage: number;
   entfernung_km: number;
   homeoffice_tage: number;
+  verpflegungsmehraufwand: number;
+  verpflegung_stfr_erstattung: number;
   arbeitsmittel: number;
   sonstige_werbungskosten: number;
   sonstige_wk_details?: DetailPosten[];
@@ -62,12 +78,8 @@ export interface HistorischeEingabe {
   erstattung_bescheid: number | null;
   nachzahlungszinsen: number;
   verspaetungszuschlag: number;
-  // Bescheid-Vergleich (Werte aus dem Einkommensteuerbescheid)
-  bescheid_einkuenfte: number | null;
-  bescheid_sonderausgaben: number | null;
-  bescheid_zvE: number | null;
-  bescheid_est: number | null;
-  bescheid_soli: number | null;
+  // Bescheid (vollständiger Einkommensteuerbescheid)
+  bescheid?: BescheidDaten;
 }
 
 export const steuerdaten: Record<number, HistorischeEingabe> = {
@@ -101,11 +113,15 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     pv_an: 483.00,
     kv_ag: 0,
     pv_ag: 0,
+    erstattete_rv: 0,
+    beitragsrueckerstattung_kv: 0,
     weitere_versicherungen: 0,
     spenden: 50.00,
     fahrt_tage: 34,
     entfernung_km: 67,
     homeoffice_tage: 0,
+    verpflegungsmehraufwand: 0,
+    verpflegung_stfr_erstattung: 0,
     arbeitsmittel: 0,
     sonstige_werbungskosten: 46.00,
     haushaltsnahe_dienstleistungen: 0,
@@ -118,11 +134,24 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: 880.92,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
-    bescheid_einkuenfte: 5250,
-    bescheid_sonderausgaben: 3158,
-    bescheid_zvE: 2092,
-    bescheid_est: 0,
-    bescheid_soli: 0,
+    bescheid: {
+      ...createEmptyBescheid(2019),
+      abzug_lohn_est: 835, abzug_lohn_soli: 45.92,
+      verbleibend_est: -835, verbleibend_soli: -45.92,
+      erstattung: 880.92,
+      bruttoarbeitslohn: 6250,
+      wk_fahrt_tage: 34, wk_fahrt_km: 67, wk_fahrt_betrag: 683.40,
+      wk_entfernungspauschale: 684, wk_uebrige: 46, wk_summe: 730, wk_pauschbetrag: 1000,
+      werbungskosten_bescheid: 1000, einkuenfte_nichtselbst: 5250,
+      summe_einkuenfte: 5250, gesamtbetrag_einkuenfte: 5250,
+      altersvorsorge_gesamt: 1163, altersvorsorge_prozent: 88, altersvorsorge_abzug: 1024,
+      altersvorsorge_ag_anteil: 581, altersvorsorge_verbleiben: 443,
+      kv_beitraege: 2201, kv_kuerzung: 19, kv_verbleiben: 2182,
+      pv_beitraege: 483, vorsorge_kv_pv_summe: 2665,
+      summe_vorsorge: 3108, sonderausgaben_unbeschraenkt: 50, summe_sonderausgaben: 3158,
+      einkommen: 2092, zve: 2092,
+      zve_tarif: 2092,
+    },
   },
 
   2020: {
@@ -155,11 +184,15 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     pv_an: 699.89,
     kv_ag: 3016.42,
     pv_ag: 699.89,
+    erstattete_rv: 0,
+    beitragsrueckerstattung_kv: 0,
     weitere_versicherungen: 109.50,
     spenden: 50.00,
     fahrt_tage: 79,
     entfernung_km: 67,
     homeoffice_tage: 0,
+    verpflegungsmehraufwand: 0,
+    verpflegung_stfr_erstattung: 0,
     arbeitsmittel: 309.00,
     sonstige_werbungskosten: 678.00,
     haushaltsnahe_dienstleistungen: 0,
@@ -172,11 +205,6 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: 518.98,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
-    bescheid_einkuenfte: null,
-    bescheid_sonderausgaben: null,
-    bescheid_zvE: null,
-    bescheid_est: null,
-    bescheid_soli: null,
   },
 
   2021: {
@@ -209,11 +237,15 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     pv_an: 428.00,
     kv_ag: 1904.00,
     pv_ag: 428.00,
+    erstattete_rv: 0,
+    beitragsrueckerstattung_kv: 0,
     weitere_versicherungen: 0,
     spenden: 100.00,
     fahrt_tage: 14,
-    entfernung_km: 53,
+    entfernung_km: 73,
     homeoffice_tage: 75,
+    verpflegungsmehraufwand: 0,
+    verpflegung_stfr_erstattung: 0,
     arbeitsmittel: 210.00,
     sonstige_werbungskosten: 16.00,
     haushaltsnahe_dienstleistungen: 110.00,
@@ -226,50 +258,49 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: -2813.00,
     nachzahlungszinsen: 83.00,
     verspaetungszuschlag: 50.00,
-    bescheid_einkuenfte: null,
-    bescheid_sonderausgaben: null,
-    bescheid_zvE: null,
-    bescheid_est: null,
-    bescheid_soli: null,
   },
 
   2022: {
     jahr: 2022,
-    bruttogehalt: 44217.00,
+    bruttogehalt: 44217.09,
     lohnsteuer: 6568.00,
-    soli_lohn: 0,
+    soli_lohn: 14,
     kirchensteuer_lohn: 0,
     kapitalertraege_gesamt: 1186.88,
     sparer_pauschbetrag: 801.00,
     steuerpflichtige_kapitalertraege: 172.00,
-    abgeltungsteuer_gezahlt: 74.00,
-    soli_kapital_gezahlt: 4.03,
+    abgeltungsteuer_gezahlt: 77.18,
+    soli_kapital_gezahlt: 4.225,
     kirchensteuer_kapital: 0,
-    estg_23: -1292.40,
-    verlustvortrag_23: 992.13,
-    estg_22: 848.53,
-    estg_20: -102.75,
-    verlustvortrag_20: 8824.86,
+    estg_23: -1244.36,
+    verlustvortrag_23: 1574.97,
+    estg_22: 805.47,
+    estg_20: -95.61,
+    verlustvortrag_20: 9884.41,
     steuern_krypto_gezahlt: 0,
     verlustvortraege_anwenden: true,
     jstg_2024_anwenden: true,
-    auslandseinkuenfte: 1373.00,
-    auslands_sv: 200.61,
+    auslandseinkuenfte: 1373.55,
+    auslands_sv: 0,
     anrechenbare_auslandssteuer: 0,
-    rv_an: 4084.50,
-    rv_ag: 4084.50,
-    kv_an_gesamt: 3470.00,
-    kv_an_regulaer: 3470.00,
-    pv_an: 824.00,
-    kv_ag: 3570.42,
-    pv_ag: 824.00,
+    rv_an: 4084.31,
+    rv_ag: 4084.31,
+    kv_an_gesamt: 3470,
+    kv_an_regulaer: 3470,
+    pv_an: 824,
+    kv_ag: 3470,
+    pv_ag: 824,
+    erstattete_rv: 0,
+    beitragsrueckerstattung_kv: 0,
     weitere_versicherungen: 303.00,
     spenden: 100.00,
     fahrt_tage: 60,
     entfernung_km: 5,
     homeoffice_tage: 120,
+    verpflegungsmehraufwand: 210,
+    verpflegung_stfr_erstattung: 14,
     arbeitsmittel: 210.00,
-    sonstige_werbungskosten: 312.00,
+    sonstige_werbungskosten: 116.00,
     haushaltsnahe_dienstleistungen: 110.00,
     handwerkerleistungen: 78.00,
     steuerklasse: 1,
@@ -280,11 +311,6 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: -507.33,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 125.00,
-    bescheid_einkuenfte: null,
-    bescheid_sonderausgaben: null,
-    bescheid_zvE: null,
-    bescheid_est: null,
-    bescheid_soli: null,
   },
 
   2023: {
@@ -296,13 +322,13 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     kapitalertraege_gesamt: 406.28,
     sparer_pauschbetrag: 1000.00,
     steuerpflichtige_kapitalertraege: null,
-    abgeltungsteuer_gezahlt: 2.00,
-    soli_kapital_gezahlt: 0.09,
+    abgeltungsteuer_gezahlt: 0,
+    soli_kapital_gezahlt: 0,
     kirchensteuer_kapital: 0,
-    estg_23: 1707.76,
+    estg_23: 1664.35,
     verlustvortrag_23: 2284.53,
     estg_22: 794.02,
-    estg_20: 0,
+    estg_20: 127.25,
     verlustvortrag_20: 7859.73,
     steuern_krypto_gezahlt: 0,
     verlustvortraege_anwenden: true,
@@ -317,15 +343,19 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     pv_an: 1019.39,
     kv_ag: 3819.41,
     pv_ag: 1019.39,
+    erstattete_rv: 0,
+    beitragsrueckerstattung_kv: 0,
     weitere_versicherungen: 303.00,
     spenden: 100.00,
     fahrt_tage: 30,
     entfernung_km: 5,
     homeoffice_tage: 181,
+    verpflegungsmehraufwand: 0,
+    verpflegung_stfr_erstattung: 0,
     arbeitsmittel: 210.00,
     sonstige_werbungskosten: 116.00,
-    haushaltsnahe_dienstleistungen: 110.00,
-    handwerkerleistungen: 80.00,
+    haushaltsnahe_dienstleistungen: 441.06,
+    handwerkerleistungen: 174.76,
     steuerklasse: 1,
     verheiratet: false,
     kinder: 0,
@@ -334,11 +364,6 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: -683.91,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
-    bescheid_einkuenfte: null,
-    bescheid_sonderausgaben: null,
-    bescheid_zvE: null,
-    bescheid_est: null,
-    bescheid_soli: null,
   },
 
   2024: {
@@ -368,14 +393,18 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     rv_ag: 5016.58,
     kv_an_gesamt: 4261.38,
     kv_an_regulaer: 4261.38,
-    pv_an: 701.24,
+    pv_an: 1240.64,
     kv_ag: 4261.38,
     pv_ag: 701.24,
+    erstattete_rv: 0,
+    beitragsrueckerstattung_kv: 0,
     weitere_versicherungen: 303.00,
     spenden: 100.00,
     fahrt_tage: 0,
     entfernung_km: 0,
     homeoffice_tage: 120,
+    verpflegungsmehraufwand: 0,
+    verpflegung_stfr_erstattung: 0,
     arbeitsmittel: 0,
     sonstige_werbungskosten: 0,
     haushaltsnahe_dienstleistungen: 0,
@@ -388,11 +417,6 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: null,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
-    bescheid_einkuenfte: null,
-    bescheid_sonderausgaben: null,
-    bescheid_zvE: null,
-    bescheid_est: null,
-    bescheid_soli: null,
   },
 
   2025: {
@@ -404,8 +428,8 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     kapitalertraege_gesamt: 246.94,
     sparer_pauschbetrag: 1000.00,
     steuerpflichtige_kapitalertraege: null,
-    abgeltungsteuer_gezahlt: 62.00,
-    soli_kapital_gezahlt: 3.39,
+    abgeltungsteuer_gezahlt: 152.39,
+    soli_kapital_gezahlt: 8.37,
     kirchensteuer_kapital: 0,
     estg_23: 0,
     verlustvortrag_23: 0,
@@ -425,15 +449,19 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     pv_an: 1349.53,
     kv_ag: 4793.66,
     pv_ag: 1349.53,
-    weitere_versicherungen: 0,
-    spenden: 0,
-    fahrt_tage: 0,
-    entfernung_km: 0,
-    homeoffice_tage: 0,
+    erstattete_rv: 15,
+    beitragsrueckerstattung_kv: 16,
+    weitere_versicherungen: 577.59,
+    spenden: 100,
+    fahrt_tage: 62,
+    entfernung_km: 7,
+    homeoffice_tage: 135,
+    verpflegungsmehraufwand: 1070,
+    verpflegung_stfr_erstattung: 1132,
     arbeitsmittel: 0,
-    sonstige_werbungskosten: 0,
-    haushaltsnahe_dienstleistungen: 0,
-    handwerkerleistungen: 0,
+    sonstige_werbungskosten: 105,
+    haushaltsnahe_dienstleistungen: 160.85,
+    handwerkerleistungen: 111.66,
     steuerklasse: 1,
     verheiratet: false,
     kinder: 0,
@@ -442,10 +470,5 @@ export const steuerdaten: Record<number, HistorischeEingabe> = {
     erstattung_bescheid: null,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
-    bescheid_einkuenfte: null,
-    bescheid_sonderausgaben: null,
-    bescheid_zvE: null,
-    bescheid_est: null,
-    bescheid_soli: null,
   },
 };

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, TrendingDown, ArrowRight, Upload } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, ArrowRight, Upload, Landmark, Plus, GitCompareArrows } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { PdfUpload } from '../components/PdfUpload';
 import { useDaten } from '../store/DatenContext';
@@ -88,22 +88,31 @@ export default function UebersichtPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-600 text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition whitespace-nowrap"
             >
               <Upload className="w-4 h-4" />
-              PDF Import
+              <span className="hidden sm:inline">PDF Import</span>
             </button>
             <Link
-              to="/banken"
-              className="px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+              to="/vergleich"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-600 text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition whitespace-nowrap"
             >
-              Banken
+              <GitCompareArrows className="w-4 h-4" />
+              <span className="hidden sm:inline">Vergleich</span>
+            </Link>
+            <Link
+              to="/banken"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-600 text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition whitespace-nowrap"
+            >
+              <Landmark className="w-4 h-4" />
+              <span className="hidden sm:inline">Banken</span>
             </Link>
             <Link
               to="/rechner"
-              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-white transition whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-white transition whitespace-nowrap"
             >
-              Neue Berechnung
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Neue Berechnung</span>
             </Link>
           </div>
         </div>

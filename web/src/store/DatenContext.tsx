@@ -4,7 +4,7 @@ import { steuerdaten as defaultSteuerdaten, type HistorischeEingabe } from '../d
 import { type HistorischesErgebnis } from '../data/ergebnisse';
 import { bankenDaten as defaultBanken, type BankEintrag } from '../data/banken';
 import { supabase } from '../lib/supabase';
-import { berechneJahresdaten } from '../core/berechnung';
+import { berechneJahresdaten, getAnteil, getAnteilKapESt, istIgnoriert, istKrypto } from '../core/berechnung';
 
 // ---------------------------------------------------------------------------
 // State & Reducer
@@ -30,25 +30,6 @@ function autoFillVonBanken(
   banken: BankEintrag[],
 ): Record<number, HistorischeEingabe> {
   const out: Record<number, HistorischeEingabe> = {};
-
-  const istIgnoriert = (b: BankEintrag) => {
-    const t = b.typ.toLowerCase();
-    return t === 'ignorieren' || t === 'ignore' || t === 'nein' || t === 'no' || t === '-';
-  };
-  const istKrypto = (b: BankEintrag) => b.typ.toLowerCase() === 'krypto';
-  const getAnteil = (b: BankEintrag) => {
-    const t = b.typ.toLowerCase();
-    if (t === 'gemeinschaft 50%' || t === 'gemeinschaft 50% (kapest voll)') return 0.5;
-    if (t === 'gemeinschaft 33%') return 1 / 3;
-    return 1.0;
-  };
-  const getAnteilKapESt = (b: BankEintrag) => {
-    const t = b.typ.toLowerCase();
-    if (t === 'gemeinschaft 50% (kapest voll)') return 1.0;
-    if (t === 'gemeinschaft 50%') return 0.5;
-    if (t === 'gemeinschaft 33%') return 1 / 3;
-    return 1.0;
-  };
 
   for (const [jahrStr, daten] of Object.entries(sd)) {
     const jahr = Number(jahrStr);
@@ -188,7 +169,11 @@ async function loadFromSupabase(): Promise<DatenState | null | 'error'> {
 
     const steuerdaten: Record<number, HistorischeEingabe> = { ...initial.steuerdaten };
     for (const row of sdRes.data ?? []) {
-      steuerdaten[row.jahr] = row.daten as HistorischeEingabe;
+      const defaults = initial.steuerdaten[row.jahr];
+      const fieldDefaults = { erstattete_rv: 0, beitragsrueckerstattung_kv: 0, auslands_sv: 0, verpflegung_stfr_erstattung: 0 };
+      steuerdaten[row.jahr] = defaults
+        ? { ...defaults, ...fieldDefaults, ...(row.daten as HistorischeEingabe) }
+        : { ...fieldDefaults, ...(row.daten as HistorischeEingabe) } as HistorischeEingabe;
     }
 
     const banken: BankEintrag[] = (bkRes.data ?? []).map((row) => row.daten as BankEintrag);

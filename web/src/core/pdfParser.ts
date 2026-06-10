@@ -29,10 +29,10 @@ function parseEuro(raw: string): number {
 /** Findet alle EUR-Beträge mit Position im Text. */
 function findAllAmounts(text: string): { value: number; index: number; raw: string }[] {
   const results: { value: number; index: number; raw: string }[] = [];
-  const re = /(-?[\d.]+,\d{2})\s*(?:EUR|€)?|(?:EUR|€)\s*(-?[\d.]+,\d{2})/gi;
+  const re = /(-?[\d.]+,\d{2})\s*(?:EUR|€)?|(?:EUR|€)\s*(-?[\d.]+,\d{2})|(-?[\d.]+)\s*(?:EUR|€)/gi;
   let m;
   while ((m = re.exec(text)) !== null) {
-    const raw = m[1] || m[2];
+    const raw = m[1] || m[2] || m[3];
     if (raw) {
       results.push({ value: parseEuro(raw), index: m.index, raw });
     }
@@ -62,7 +62,11 @@ function amountNear(text: string, labelPattern: RegExp, maxDist = 300): number {
 function findJahr(text: string): number | null {
   const m = text.match(/Kalenderjahr\s*(20\d{2})/i)
     || text.match(/(?:Steuer\s*Report|Zeitraum)[^0-9]*(20\d{2})/i)
-    || text.match(/(?:Jahr|Steuerjahr|für)\s*:?\s*(20\d{2})/i);
+    || text.match(/(?:Jahr|Steuerjahr|für)\s*:?\s*(20\d{2})/i)
+    || text.match(/Lohn\s*steuer\s*bescheinigung\s+(?:für\s+)?(20\d{2})/i)
+    || text.match(/01\.01\.\s*[-–]\s*31\.12\.\s*(20\d{2})/i)
+    || text.match(/\b(20\d{2})\s*[-–]\s*LST\b/i)
+    || text.match(/Steuerbescheinigung[^0-9]{0,40}(20\d{2})/i);
   return m ? parseInt(m[1], 10) : null;
 }
 
@@ -74,9 +78,21 @@ export type DokumentTyp = 'lstb' | 'bank' | 'krypto' | 'unbekannt';
 
 export function erkenneTyp(text: string): DokumentTyp {
   const lower = text.toLowerCase();
-  if (lower.includes('lohnsteuerbescheinigung') || (lower.includes('bruttoarbeitslohn') && lower.includes('lohnsteuer'))) return 'lstb';
+  const collapsed = lower.replace(/\s+/g, ' ');
+  if (lower.includes('lohnsteuerbescheinigung')
+    || collapsed.includes('lohn steuer bescheinigung')
+    || /lohn\s*steuer\s*bescheinigung/i.test(text)
+    || (lower.includes('bruttoarbeitslohn') && lower.includes('lohnsteuer'))
+    || (lower.includes('bruttoarbeitslohn') && lower.includes('einbehaltene'))
+  ) return 'lstb';
   if (lower.includes('cointracking') || (lower.includes('steuer report') && lower.includes('kryptow'))) return 'krypto';
-  if (lower.includes('steuerbescheinigung') || lower.includes('jahressteuerbescheinigung') || lower.includes('apitalertr') || lower.includes('anlage kap') || lower.includes('anlage   kap')) return 'bank';
+  if (lower.includes('steuerbescheinigung')
+    || lower.includes('jahressteuerbescheinigung')
+    || collapsed.includes('jahres steuer bescheinigung')
+    || lower.includes('apitalertr')
+    || /anlage\s+kap\b/i.test(text)
+    || (lower.includes('kapitalertragsteuer') && lower.includes('solidarit'))
+  ) return 'bank';
   return 'unbekannt';
 }
 
@@ -88,8 +104,8 @@ function erkenneBankname(text: string): string | null {
     [/baader\s*bank/i, 'Baader Bank'],
     [/bb\s*bank/i, 'BB Bank'],
     [/postbank/i, 'Postbank'],
-    [/deutsche\s*bank/i, 'Postbank'],
-    [/ing[- ]?diba|ing\b/i, 'ING'],
+    [/deutsche\s*bank/i, 'Deutsche Bank'],
+    [/ing[- ]?diba|\bING\b/i, 'ING'],
     [/trade\s*republic/i, 'Trade Republic'],
     [/dkb|deutsche\s*kreditbank/i, 'DKB'],
     [/sparkasse/i, 'Sparkasse'],
@@ -115,7 +131,12 @@ export interface BankErgebnis {
 }
 
 export function parseBank(text: string): BankErgebnis {
-  const jahr = findJahr(text);
+  let jahr = findJahr(text);
+  if (!jahr) {
+    const m = text.match(/bescheinigung[^0-9]{0,40}(20\d{2})/i)
+      || text.match(/\b(20(?:1[9]|2[0-9]))\b/);
+    if (m) jahr = parseInt(m[1], 10);
+  }
   const bankName = erkenneBankname(text);
   const daten: Partial<BankEintrag> = {};
 
@@ -340,11 +361,30 @@ export interface KryptoErgebnis {
 
 export function parseKrypto(text: string): KryptoErgebnis {
   const jahr = findJahr(text);
-  const estg_23 = amountNear(text, /Sonstige Eink[üu]nfte aus privaten Ver[äa]u[ßs]erungsgesch[äa]ften nach §\s*23 EStG:/i)
-    || amountNear(text, /Steuerrelevanter Ver[äa]u[ßs]erungsgewinn/i);
-  const estg_20 = amountNear(text, /=\s*Eink[üu]nfte aus Margin/i);
-  const estg_22 = amountNear(text, /Sonstige Eink[üu]nfte im Sinne §\s*22 Nr\.\s*3 EStG:/i)
-    || amountNear(text, /Steuerrelevante sonstige Eink[üu]nfte:/i);
+
+  // §23: Suche den finalen Wert "(eingetragen in Anlage SO)" — nicht das Inhaltsverzeichnis
+  const estg_23_match = text.match(/Sonstige Eink[üu]nfte aus privaten Ver[äa]u[ßs]erungsgesch[äa]ften nach §\s*23 EStG:\s*(-?[\d.]+,\d{2})\s*EUR/i);
+  let estg_23 = estg_23_match ? parseEuro(estg_23_match[1]) : 0;
+  if (!estg_23) {
+    const m = text.match(/Steuerrelevanter Ver[äa]u[ßs]erungsgewinn\s*\/?[^:]*:\s*(-?[\d.]+,\d{2})\s*EUR/i);
+    estg_23 = m ? parseEuro(m[1]) : 0;
+  }
+
+  // §20: Margin/Derivate/Futures + Liquidity Mining/Kapitalerträge
+  const estg_20_margin_match = text.match(/=\s*Eink[üu]nfte aus Margin[^\n]*?(-?[\d.]+,\d{2})\s*EUR/i);
+  const estg_20_margin = estg_20_margin_match ? parseEuro(estg_20_margin_match[1]) : 0;
+  const estg_20_kap_match = text.match(/Summe aller Gewinne Eink[üu]nfte nach Kapitalertr[äa]gen:\s*(-?[\d.]+,\d{2})\s*EUR/i);
+  const estg_20_kap = estg_20_kap_match ? parseEuro(estg_20_kap_match[1]) : 0;
+  const estg_20 = estg_20_margin + estg_20_kap;
+
+  // §22: Suche den finalen Wert "(eingetragen in Anlage SO)" — nicht das Inhaltsverzeichnis
+  const estg_22_match = text.match(/Sonstige Eink[üu]nfte im Sinne §\s*22 Nr\.\s*3 EStG:\s*(-?[\d.]+,\d{2})\s*EUR/i);
+  let estg_22 = estg_22_match ? parseEuro(estg_22_match[1]) : 0;
+  if (!estg_22) {
+    const m = text.match(/Steuerrelevante sonstige Eink[üu]nfte:\s*(-?[\d.]+,\d{2})\s*EUR/i);
+    estg_22 = m ? parseEuro(m[1]) : 0;
+  }
+
   return { typ: 'krypto', jahr, daten: { estg_23, estg_22, estg_20 } };
 }
 
@@ -359,7 +399,13 @@ export interface LStBErgebnis {
 }
 
 export function parseLStB(text: string): LStBErgebnis {
-  const jahr = findJahr(text);
+  let jahr = findJahr(text);
+  if (!jahr) {
+    const m = text.match(/bescheinigung[^0-9]{0,30}(20\d{2})/i)
+      || text.match(/(20\d{2})\s*[-–]\s*LST/i)
+      || text.match(/\b(20(?:1[9]|2[0-9]))\b/);
+    if (m) jahr = parseInt(m[1], 10);
+  }
   const daten: Partial<HistorischeEingabe> = {};
 
   const amounts = findAllAmounts(text);
@@ -390,21 +436,23 @@ export function parseLStB(text: string): LStBErgebnis {
       daten.rv_an = amounts[i + 1].value;
       if (i + 2 < amounts.length && amounts[i + 2].value > 100) {
         daten.kv_an_regulaer = amounts[i + 2].value;
+        daten.kv_an_gesamt = amounts[i + 2].value;
       }
       break;
     }
   }
 
   // --- DBA (Feld 16a) ---
-  // Im Block stehen nach Brutto/LSt nur ausgefüllte Felder — leere werden übersprungen.
-  // Wenn Soli > 0, enthält der Block danach typisch PV, KiSt oder andere Abzüge,
-  // die NICHT DBA sind. DBA aus dem Block nur nehmen wenn Soli = 0.
-  if (daten.soli_lohn === 0 && firstBlock.length > 2 && lst > 0) {
-    const candidate = firstBlock[2];
-    const svValues = new Set([daten.rv_ag, daten.rv_an, daten.kv_an_regulaer].filter(Boolean));
-    if (candidate > 0 && !svValues.has(candidate) && candidate < (daten.bruttogehalt ?? Infinity)) {
-      daten.auslandseinkuenfte = candidate;
-    }
+  const dbaMatch = amountNear(text, /16\s*[.a-z)]*\s*(Steuerfreier\s+Arbeitslohn|Doppelbesteuerungsabkommen|DBA)/i, 400);
+  if (dbaMatch > 0) {
+    daten.auslandseinkuenfte = dbaMatch;
+  }
+
+  // --- Zeile 20: Steuerfreie Verpflegungszuschüsse ---
+  const verpflMatch = amountNear(text, /20\.\s*Steuerfreie\s+Verpflegungszusch[üu]sse/i, 400)
+    || amountNear(text, /Verpflegungszusch[üu]sse\s+bei\s+Ausw[äa]rtst[äa]tigkeit/i, 400);
+  if (verpflMatch > 0) {
+    daten.verpflegung_stfr_erstattung = verpflMatch;
   }
 
   // PV AN: letzter unzugewiesener Wert im Block zwischen 50-5000

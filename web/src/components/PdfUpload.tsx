@@ -45,9 +45,11 @@ function diffSteuerdaten(existing: HistorischeEingabe, imported: Partial<Histori
     { key: 'kirchensteuer_lohn', label: 'Kirchensteuer' },
     { key: 'rv_an', label: 'RV AN' },
     { key: 'rv_ag', label: 'RV AG' },
-    { key: 'kv_an_regulaer', label: 'KV AN' },
+    { key: 'kv_an_gesamt', label: 'KV AN (gesamt)' },
+    { key: 'kv_an_regulaer', label: 'KV AN (regulär)' },
     { key: 'pv_an', label: 'PV AN' },
     { key: 'auslandseinkuenfte', label: 'Auslandseinkünfte (DBA)' },
+    { key: 'verpflegung_stfr_erstattung', label: 'Stfr. Verpflegungszuschüsse (Z.20)' },
   ];
   for (const { key, label } of fields) {
     const imp = imported[key] as number | undefined;
@@ -117,6 +119,26 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
             diffs = diffSteuerdaten(existing, result.daten);
             isUpdate = true;
           }
+        } else if (result.typ === 'krypto' && result.jahr) {
+          const existingKrypto = state.banken.findIndex(
+            (b) => b.typ.toLowerCase() === 'krypto' && b.jahr === result.jahr
+          );
+          if (existingKrypto >= 0) {
+            existingBankIndex = existingKrypto;
+            const entry = state.banken[existingKrypto];
+            const kryptoFields: { key: keyof BankEintrag; label: string }[] = [
+              { key: 'estg_23', label: '§23 Veräußerung' },
+              { key: 'estg_22', label: '§22 Staking/Airdrops' },
+              { key: 'estg_20', label: '§20 Termingeschäfte' },
+            ];
+            for (const { key, label } of kryptoFields) {
+              const imp = (result.daten as Record<string, number>)[key];
+              if (imp !== undefined) {
+                diffs.push({ label, existing: (entry[key] as number) || 0, imported: imp });
+              }
+            }
+            isUpdate = true;
+          }
         }
 
         newResults.push({ file: file.name, result, rawText: text, applied: false, isUpdate, existingBankIndex, diffs });
@@ -157,7 +179,7 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
       updateSteuerdaten(r.jahr, r.daten);
     } else if (r.typ === 'bank' && r.jahr) {
       if (item.existingBankIndex !== null) {
-        updateBank(item.existingBankIndex, r.daten);
+        updateBank(item.existingBankIndex, { ...r.daten, notiz: `Importiert aus ${item.file}` });
       } else {
         const bankEintrag: BankEintrag = {
           bank: r.bankName || 'Unbekannte Bank',
@@ -179,11 +201,26 @@ export function PdfUpload({ onClose }: { onClose: () => void }) {
         addBank(bankEintrag);
       }
     } else if (r.typ === 'krypto' && r.jahr) {
-      updateSteuerdaten(r.jahr, {
-        estg_23: r.daten.estg_23,
-        estg_22: r.daten.estg_22,
-        estg_20: r.daten.estg_20,
-      });
+      if (item.existingBankIndex !== null) {
+        updateBank(item.existingBankIndex, {
+          estg_23: r.daten.estg_23,
+          estg_22: r.daten.estg_22,
+          estg_20: r.daten.estg_20,
+          notiz: `Importiert aus ${item.file}`,
+        });
+      } else {
+        addBank({
+          bank: 'CoinTracking',
+          typ: 'Krypto',
+          jahr: r.jahr,
+          kapitalertraege: 0, kapitalertragsteuer: 0, soli_kapital: 0, kirchensteuer: 0,
+          sparer_pauschbetrag: 0, invstg_56: 0, fiktiv_zugeflossen: 0, broker_verluste: 0,
+          estg_20: r.daten.estg_20,
+          estg_23: r.daten.estg_23,
+          estg_22: r.daten.estg_22,
+          notiz: `Importiert aus ${item.file}`,
+        });
+      }
     }
 
     setResults((prev) =>

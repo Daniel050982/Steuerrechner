@@ -41,7 +41,7 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
   kapitalertraege_gesamt:
     'Summe aller Kapitalerträge aus Dividenden, Zinsen und realisierten Kursgewinnen.\n\n' +
     '• Steht auf der Jahressteuerbescheinigung deiner Bank/Broker\n' +
-    '• Wird automatisch aus dem Banken-Tab berechnet (gelbe Zellen)\n' +
+    '• Wird automatisch aus dem Banken-Tab berechnet, wenn dort Einträge vorhanden\n' +
     '• Unrealisierte Buchgewinne zählen nicht',
 
   sparer_pauschbetrag:
@@ -71,7 +71,7 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
   estg_23:
     'Gewinne oder Verluste aus privaten Veräußerungsgeschäften nach § 23 EStG.\n\n' +
     '• Betrifft Krypto-Verkäufe innerhalb der 1-Jahres-Haltefrist\n' +
-    '• Gewinne unter 600 € (Freigrenze) sind steuerfrei\n' +
+    '• Freigrenze: 600 € (bis 2023) bzw. 1.000 € (ab 2024)\n' +
     '• Verluste können mit künftigen §23-Gewinnen verrechnet werden\n' +
     '• Quelle: CoinTracking oder eigene Aufstellung',
 
@@ -84,7 +84,8 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
   estg_22:
     'Einkünfte aus sonstigen Leistungen nach § 22 Nr. 3 EStG.\n\n' +
     '• Staking-Rewards, Airdrops, Lending-Zinsen (Krypto)\n' +
-    '• Freigrenze: 256 € pro Jahr (ab 2024)\n' +
+    '• Freigrenze: 256 € pro Jahr\n' +
+    '• Die Freigrenze wird nicht automatisch angewendet — bei Bedarf manuell auf 0 setzen\n' +
     '• Fließt ins zu versteuernde Einkommen (progressiver Steuersatz)',
 
   estg_20:
@@ -112,9 +113,10 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
     '• Findest du im Steuerbescheid oder auf dem ausländischen Gehaltszettel',
 
   auslands_sv:
-    'Im Ausland gezahlte Arbeitnehmer-Sozialversicherungsbeiträge.\n\n' +
-    '• Werden bei der Sonderausgaben-Berechnung berücksichtigt\n' +
-    '• Findest du auf dem ausländischen Gehaltszettel',
+    'Im Ausland gezahlte Arbeitnehmer-Sozialversicherungsbeiträge (RV + KV + PV).\n\n' +
+    '• Wird zu den Vorsorgeaufwendungen addiert (Beiträge nach § 10 Abs. 1 Nr. 3)\n' +
+    '• Findest du auf dem ausländischen Gehaltszettel oder Dezember-Lohnschein\n' +
+    '• Bei RV/KV/PV oben nur die deutschen LStB-Werte eintragen — die Auslands-SV kommt über dieses Feld dazu',
 
   anrechenbare_auslandssteuer:
     'Im Ausland gezahlte Einkommensteuer, die in Deutschland angerechnet wird.\n\n' +
@@ -128,33 +130,47 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
     '• LStB Zeile 23a\n' +
     '• Aktueller Beitragssatz: 18,6% (je Hälfte AN/AG)\n' +
     '• Seit 2023 zu 100% als Sonderausgabe absetzbar\n\n' +
-    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
+    'Bei DBA (Auslandsarbeit): Hier den LStB-Wert eintragen (nur deutscher Anteil). Die ausländischen SV-Beiträge werden über das Feld „Auslands-SV AN" separat erfasst.',
 
   rv_ag:
     'Arbeitgeber-Anteil der gesetzlichen Rentenversicherung.\n\n' +
     '• LStB Zeile 22a\n' +
     '• Wird für die Vorsorge-Berechnung benötigt\n' +
     '• Formel: (AN + AG) × Abzugssatz − AG-Anteil = absetzbar\n\n' +
-    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
+    'Bei DBA (Auslandsarbeit): Hier den LStB-Wert eintragen (nur deutscher Anteil).',
 
   kv_an_gesamt:
     'Gesamter Arbeitnehmer-Anteil der Krankenversicherung inkl. Zusatzbeitrag und evtl. Wahltarife.\n\n' +
     '• Bildet die Basis für die abziehbare KV (nach 4%-Kürzung)\n' +
-    '• Wenn gesamt ≠ regulär: Der reguläre Teil dient als Basis für die 4%-Kürzung',
+    '• Wenn gesamt ≠ regulär: Der reguläre Teil dient als Basis für die 4%-Kürzung\n\n' +
+    '⚠ 2019: Nur 2 Monate angestellt — hier den Gesamtbetrag eintragen (478 € aus Arbeit + 1.723 € freiwillige KV Jan–Okt = 2.201 €).',
 
   kv_an_regulaer:
     'Regulärer Arbeitnehmer-Anteil der Krankenversicherung.\n\n' +
     '• LStB Zeile 25\n' +
     '• Wird um 4% gekürzt (Krankengeld-Anteil) und dann voll abgesetzt\n' +
     '• Bei privater KV: der Basisbeitrag\n\n' +
-    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
+    'Bei DBA (Auslandsarbeit): Hier den LStB-Wert eintragen (nur deutscher Anteil). Die ausländischen SV-Beiträge werden über das Feld „Auslands-SV AN" separat erfasst.',
 
   pv_an:
     'Arbeitnehmer-Anteil der Pflegeversicherung.\n\n' +
     '• LStB Zeile 26\n' +
     '• Kinderlose über 23 zahlen einen Zuschlag\n' +
     '• Wird vollständig als Sonderausgabe abgesetzt\n\n' +
-    'Bei DBA (Auslandsarbeit): Die LStB enthält nur den deutschen Anteil. Den korrekten (höheren) Wert findest du in den Jahressummen auf dem Dezember-Lohnschein.',
+    'Bei DBA (Auslandsarbeit): Hier den LStB-Wert eintragen (nur deutscher Anteil). Die ausländischen SV-Beiträge werden über das Feld „Auslands-SV AN" separat erfasst.\n\n' +
+    '⚠ 2019: Nur 2 Monate angestellt — die LStB zeigt nur 110,94 € (AN-Anteil aus Arbeit). Der korrekte Wert ist 483 € (inkl. 372 € aus freiwilliger Versicherung Jan–Okt).',
+
+  erstattete_rv:
+    'Vom Rentenversicherungsträger erstattete Beiträge.\n\n' +
+    '• Wird von den abziehbaren RV-Beiträgen abgezogen\n' +
+    '• Steht auf der LStB oder im Schreiben des RV-Trägers\n' +
+    '• Typisch bei Überzahlung oder Beitragserstattung',
+
+  beitragsrueckerstattung_kv:
+    'Beitragsrückerstattung der Krankenversicherung.\n\n' +
+    '• Bonus oder Prämie der GKV (z.B. für Nichtraucher, Vorsorge)\n' +
+    '• Wird von den abziehbaren KV-Beiträgen abgezogen\n' +
+    '• Steht auf der Bescheinigung der Krankenkasse',
 
   weitere_versicherungen:
     'Sonstige Vorsorgeaufwendungen (Anlage Vorsorgeaufwand, Zeile 46–52).\n\n' +
@@ -192,6 +208,23 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
     '• Homeoffice und Fahrt zur Arbeit schließen sich gegenseitig aus\n' +
     '• Kein separates Arbeitszimmer nötig',
 
+  verpflegungsmehraufwand:
+    'Gesetzliche Verpflegungspauschalen für Dienstreisen (§ 9 Abs. 4a EStG).\n\n' +
+    '• Inland: 14 € (Abwesenheit > 8 Std.) oder 28 € (24 Std.)\n' +
+    '• Ausland: länderspezifische Pauschalen (z.B. Frankreich 2022: 39 € An-/Abreisetag, 58 € voller Tag)\n' +
+    '• An- und Abreisetage zählen immer als halbe Tage (wie > 8 Std.)\n' +
+    '• Trage hier die Summe der Pauschalen ein — NICHT was der Arbeitgeber gezahlt hat\n' +
+    '• Die steuerfreie AG-Erstattung (LStB Zeile 20) wird im nächsten Feld abgezogen\n\n' +
+    'Beispiel 2022 (Frankreich): 3 Tage → 39 € + 58 € + 39 € = 136 € pro Reise.\n' +
+    'Im Bescheid steht: Pauschalen − stfr. AG-Erstattung = verbleiben.',
+
+  verpflegung_stfr_erstattung:
+    'Steuerfreie Arbeitgeber-Erstattung für Verpflegung.\n\n' +
+    '• LStB Zeile 20 „Steuerfreie Verpflegungszuschüsse bei Auswärtstätigkeit"\n' +
+    '• Wird von den Verpflegungspauschalen abgezogen\n' +
+    '• Ergebnis = steuerlich absetzbarer Verpflegungsmehraufwand (verbleiben)\n' +
+    '• Wenn 0: Keine steuerfreie Erstattung vom Arbeitgeber erhalten',
+
   arbeitsmittel:
     'Ausgaben für beruflich genutzte Gegenstände.\n\n' +
     '• Laptop, Monitor, Schreibtisch, Bürostuhl, Fachliteratur\n' +
@@ -203,7 +236,6 @@ export const TOOLTIPS_STEUERDATEN: Record<string, string> = {
     'Weitere berufsbedingte Ausgaben, die nicht in die anderen Felder passen.\n\n' +
     '• Internetkosten (20% der Rechnung, max. 20 €/Monat = 240 €/Jahr)\n' +
     '• Kontoführungsgebühren (16 € pauschal)\n' +
-    '• Verpflegungsmehraufwand bei Dienstreisen (14 €/28 € pro Tag)\n' +
     '• Fortbildungskosten, Fachliteratur\n' +
     '• Gewerkschaftsbeiträge\n' +
     '• Berufskleidung (nur typische Berufskleidung)\n' +

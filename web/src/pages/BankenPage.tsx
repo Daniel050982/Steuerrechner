@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Landmark, Plus, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Home, Landmark, Plus, Trash2, Upload } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { Card } from '../components/ui/Card';
 import { EditableField } from '../components/ui/EditableField';
 import { PdfUpload } from '../components/PdfUpload';
 import { useDaten } from '../store/DatenContext';
 import type { BankEintrag } from '../data/banken';
+import { getAnteil, getAnteilKapESt, istIgnoriert, istKrypto } from '../core/berechnung';
 import { euro } from '../utils/format';
 import { TOOLTIPS_BANKEN as TB } from '../data/tooltips';
 
@@ -16,6 +17,8 @@ function TypBadge({ typ }: { typ: BankEintrag['typ'] }) {
   const styles: Record<string, string> = {
     Einzel: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
     'Gemeinschaft 50%': 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+    'Gemeinschaft 50% (KapESt voll)': 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+    'Gemeinschaft 33%': 'bg-purple-500/15 text-purple-400 border-purple-500/30',
     Krypto: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
     Ignorieren: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
   };
@@ -82,6 +85,13 @@ function EditableBankCard({
           </>
         )}
       </div>
+
+      {eintrag.notiz && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-600/40 bg-amber-900/20 px-3 py-2">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-300">{eintrag.notiz}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -108,18 +118,18 @@ export default function BankenPage() {
     .map((b, i) => ({ eintrag: b, index: i }))
     .filter(({ eintrag }) => eintrag.jahr === selectedJahr);
 
-  // Summen
+  // Summen (mit Anteilsfaktoren, wie in der Berechnung)
   const sumKapErtr = eintraegeWithIndex
-    .filter(({ eintrag }) => eintrag.typ !== 'Ignorieren' && eintrag.typ !== 'Krypto')
-    .reduce((s, { eintrag }) => s + eintrag.kapitalertraege, 0);
+    .filter(({ eintrag }) => !istIgnoriert(eintrag) && !istKrypto(eintrag))
+    .reduce((s, { eintrag }) => s + eintrag.kapitalertraege * getAnteil(eintrag), 0);
   const sumKapESt = eintraegeWithIndex
-    .filter(({ eintrag }) => eintrag.typ !== 'Ignorieren')
-    .reduce((s, { eintrag }) => s + eintrag.kapitalertragsteuer, 0);
+    .filter(({ eintrag }) => !istIgnoriert(eintrag) && !istKrypto(eintrag))
+    .reduce((s, { eintrag }) => s + eintrag.kapitalertragsteuer * getAnteilKapESt(eintrag), 0);
   const sumKrypto23 = eintraegeWithIndex
-    .filter(({ eintrag }) => eintrag.typ === 'Krypto')
+    .filter(({ eintrag }) => istKrypto(eintrag))
     .reduce((s, { eintrag }) => s + eintrag.estg_23, 0);
   const sumKrypto22 = eintraegeWithIndex
-    .filter(({ eintrag }) => eintrag.typ === 'Krypto')
+    .filter(({ eintrag }) => istKrypto(eintrag))
     .reduce((s, { eintrag }) => s + eintrag.estg_22, 0);
 
   const [showAddForm, setShowAddForm] = useState(false);
@@ -146,7 +156,7 @@ export default function BankenPage() {
             <select
               value={selectedJahr}
               onChange={(e) => setSelectedJahr(Number(e.target.value))}
-              className="rounded-xl border border-slate-600 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+              className="rounded-lg border border-slate-600 bg-slate-800/50 px-2.5 py-1.5 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
             >
               {jahre.map((j) => (
                 <option key={j} value={j}>{j}</option>
@@ -154,24 +164,35 @@ export default function BankenPage() {
             </select>
             <button
               onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-600 text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition whitespace-nowrap"
             >
               <Upload className="w-4 h-4" />
-              PDF Import
+              <span className="hidden sm:inline">PDF Import</span>
             </button>
             <button
               onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-white transition whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-white transition whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              Bank
+              <span className="hidden sm:inline">Bank</span>
             </button>
+            {jahrParam && (
+              <Link
+                to={`/jahr/${jahrParam}`}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-600 text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition whitespace-nowrap"
+                title={`Zurück zu ${jahrParam}`}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">{jahrParam}</span>
+              </Link>
+            )}
             <Link
               to="/"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-600 text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition whitespace-nowrap"
+              title="Übersicht"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Übersicht
+              <Home className="w-4 h-4" />
+              <span className="hidden sm:inline">Übersicht</span>
             </Link>
           </div>
         </div>
@@ -225,6 +246,8 @@ export default function BankenPage() {
                 >
                   <option value="Einzel">Einzel</option>
                   <option value="Gemeinschaft 50%">Gemeinschaft 50%</option>
+                  <option value="Gemeinschaft 50% (KapESt voll)">Gemeinschaft 50% (KapESt voll)</option>
+                  <option value="Gemeinschaft 33%">Gemeinschaft 33%</option>
                   <option value="Krypto">Krypto</option>
                   <option value="Ignorieren">Ignorieren</option>
                 </select>

@@ -22,6 +22,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.30,
     entfernungspauschale_erhoeht_ab_km: 9999,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 972,
     kirchensteuerSatz: 0,
     tarif: {
@@ -44,6 +45,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.30,
     entfernungspauschale_erhoeht_ab_km: 9999,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 972,
     kirchensteuerSatz: 0,
     tarif: {
@@ -66,6 +68,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.35,
     entfernungspauschale_erhoeht_ab_km: 21,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 16956,
     kirchensteuerSatz: 0,
     tarif: {
@@ -88,6 +91,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.38,
     entfernungspauschale_erhoeht_ab_km: 21,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 16956,
     kirchensteuerSatz: 0,
     tarif: {
@@ -110,6 +114,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.38,
     entfernungspauschale_erhoeht_ab_km: 21,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 17543,
     kirchensteuerSatz: 0,
     tarif: {
@@ -132,6 +137,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.38,
     entfernungspauschale_erhoeht_ab_km: 21,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 18130,
     kirchensteuerSatz: 0,
     tarif: {
@@ -154,6 +160,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.38,
     entfernungspauschale_erhoeht_ab_km: 21,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 18816,
     kirchensteuerSatz: 0,
     tarif: {
@@ -176,6 +183,7 @@ const configs: Record<string, JahresConfig> = {
     entfernungspauschale_erhoeht: 0.38,
     entfernungspauschale_erhoeht_ab_km: 21,
     krankengeld_kuerzung: 0.04,
+    sonderausgabenPauschbetrag: 36,
     soli_freigrenze: 19488,
     kirchensteuerSatz: 0,
     tarif: {

@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom';
-import { Calculator, ArrowLeft } from 'lucide-react';
+import { Calculator, Home } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { SelectInput } from '../components/ui/SelectInput';
 import { Toggle } from '../components/ui/Toggle';
@@ -45,10 +45,11 @@ export default function RechnerPage() {
             />
             <Link
               to="/"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-700 transition whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-600 text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition whitespace-nowrap"
+              title="Übersicht"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Übersicht
+              <Home className="w-4 h-4" />
+              <span className="hidden sm:inline">Übersicht</span>
             </Link>
           </div>
         </div>

@@ -34,7 +34,7 @@ export function ErgebnisOverview() {
     );
   }
 
-  const erstattung = r.differenz < 0;
+  const erstattung = r.differenz > 0;
 
   return (
     <div className="space-y-6">

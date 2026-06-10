@@ -48,14 +48,14 @@ function berechneSoli(est: number, freigrenze: number): number {
 // Banken-Aggregation: Anteilsfaktoren
 // ---------------------------------------------------------------------------
 
-function getAnteil(b: BankEintrag): number {
+export function getAnteil(b: BankEintrag): number {
   const t = b.typ.toLowerCase();
   if (t === 'gemeinschaft 50%' || t === 'gemeinschaft 50% (kapest voll)') return 0.5;
   if (t === 'gemeinschaft 33%') return 1 / 3;
   return 1.0;
 }
 
-function getAnteilKapESt(b: BankEintrag): number {
+export function getAnteilKapESt(b: BankEintrag): number {
   const t = b.typ.toLowerCase();
   if (t === 'gemeinschaft 50% (kapest voll)') return 1.0;
   if (t === 'gemeinschaft 50%') return 0.5;
@@ -63,11 +63,11 @@ function getAnteilKapESt(b: BankEintrag): number {
   return 1.0;
 }
 
-function istKrypto(b: BankEintrag): boolean {
+export function istKrypto(b: BankEintrag): boolean {
   return b.typ.toLowerCase() === 'krypto';
 }
 
-function istIgnoriert(b: BankEintrag): boolean {
+export function istIgnoriert(b: BankEintrag): boolean {
   const t = b.typ.toLowerCase();
   return t === 'ignorieren' || t === 'ignore' || t === 'nein' || t === 'no' || t === '-';
 }
@@ -109,7 +109,8 @@ export function berechneJahresdaten(
     );
   }
 
-  const tatsaechlicheWK = entfernungspauschale + arbeitsmittel + sonstigeWK;
+  const verpflegung = Math.max(0, daten.verpflegungsmehraufwand - (daten.verpflegung_stfr_erstattung ?? 0));
+  const tatsaechlicheWK = entfernungspauschale + arbeitsmittel + sonstigeWK + verpflegung;
   const werbungskosten = Math.floor(Math.max(tatsaechlicheWK + homeofficePauschale, config.werbungskostenpauschale));
 
   // === Krypto §23 / §22 / §20 aus Steuerdaten ===
@@ -120,32 +121,45 @@ export function berechneJahresdaten(
 
   // === Sonderausgaben / Vorsorgeaufwendungen ===
 
-  const an_rv = daten.rv_an;
-  const ag_rv = daten.rv_ag;
-  const an_kv_gesamt = daten.kv_an_gesamt;
-  const an_kv_regulaer = daten.kv_an_regulaer;
-  const an_pv = daten.pv_an;
-  const spenden = daten.spenden;
+  let gesamt_rv: number;
+  let ag_rv: number;
+  let an_kv_gesamt: number;
+  let an_kv_regulaer: number;
+  let an_pv: number;
 
-  const gesamt_rv = Math.min(an_rv + ag_rv, config.max_vorsorge_rv);
-  const anteil_rv_bescheid = Math.ceil(Math.round(gesamt_rv) * config.vorsorgeAbzug);
-  const abziehbareRV = anteil_rv_bescheid - Math.floor(ag_rv);
+  const erstatteteRV = daten.erstattete_rv ?? 0;
+  const beitragsrueckKV = daten.beitragsrueckerstattung_kv ?? 0;
 
-  const kv_gerundet = Math.ceil(an_kv_gesamt);
-  const kv_kuerz_basis = an_kv_regulaer > 0 ? Math.ceil(an_kv_regulaer) : kv_gerundet;
+  gesamt_rv = Math.round(Math.min(daten.rv_an + daten.rv_ag, config.max_vorsorge_rv));
+  ag_rv = Math.round(daten.rv_ag);
+  an_kv_gesamt = Math.ceil(daten.kv_an_gesamt);
+  an_kv_regulaer = daten.kv_an_regulaer > 0 ? Math.ceil(daten.kv_an_regulaer) : 0;
+  an_pv = Math.ceil(daten.pv_an);
+  const spenden = Math.floor(daten.spenden);
+
+  const anteil_rv_bescheid = Math.ceil(gesamt_rv * config.vorsorgeAbzug);
+  const abziehbareRV = Math.max(0, anteil_rv_bescheid - ag_rv - erstatteteRV);
+
+  const kv_gerundet = an_kv_gesamt;
+  const kv_kuerz_basis = an_kv_regulaer > 0 ? an_kv_regulaer : kv_gerundet;
   const kv_kuerzung = Math.floor(kv_kuerz_basis * config.krankengeld_kuerzung);
-  const abziehbareKV = kv_gerundet - kv_kuerzung;
-  const abziehbarePV = Math.ceil(an_pv);
+  const abziehbareKV = Math.max(0, kv_gerundet - kv_kuerzung - beitragsrueckKV);
+  const abziehbarePV = an_pv;
 
   const vorsorge_basis = abziehbareKV + abziehbarePV;
-  const weitereVers = daten.weitere_versicherungen;
+  const weitereVers = daten.weitere_versicherungen + (daten.auslands_sv ?? 0);
   const hoechstbetragBasis = daten.krankenversichert === 'privat' ? 2800 : 1900;
   const hoechstbetrag = verheiratet ? hoechstbetragBasis * 2 : hoechstbetragBasis;
   const abziehbareWeitereVers = vorsorge_basis < hoechstbetrag
     ? Math.min(weitereVers, hoechstbetrag - vorsorge_basis)
     : 0;
 
-  const sonderausgaben = abziehbareRV + vorsorge_basis + abziehbareWeitereVers + Math.floor(spenden);
+  const saPauschbetrag = verheiratet
+    ? config.sonderausgabenPauschbetrag * 2
+    : config.sonderausgabenPauschbetrag;
+  const sonstigeSA = Math.max(Math.floor(spenden), saPauschbetrag);
+
+  const sonderausgaben = abziehbareRV + vorsorge_basis + abziehbareWeitereVers + sonstigeSA;
 
   // === Banken-Aggregation ===
 
@@ -169,11 +183,15 @@ export function berechneJahresdaten(
   const kryptoSO = kryptoSO_manual !== 0 ? kryptoSO_manual : kryptoSO_banken;
   const sonstigeSO = sonstigeSO_manual !== 0 ? sonstigeSO_manual : sonstigeSO_banken;
 
+  // §23 Freigrenze: Gewinne unter 600€ (bis 2023) bzw. 1.000€ (ab 2024) sind steuerfrei
+  const freigrenze23 = jahr >= 2024 ? 1000 : 600;
+  const kryptoSO_nachFreigrenze = (kryptoSO > 0 && kryptoSO < freigrenze23) ? 0 : kryptoSO;
+
   // §23 Verlustvortrag-Verrechnung
-  const kryptoSO_netto = kryptoSO - vortrag23;
+  const kryptoSO_netto = kryptoSO_nachFreigrenze - vortrag23;
   const kryptoSO_stpfl = Math.max(kryptoSO_netto, 0);
-  const vortrag23_verrechnet = Math.min(vortrag23, Math.max(kryptoSO, 0));
-  const vortrag23_verbleibend = vortrag23 + Math.max(-kryptoSO, 0) - vortrag23_verrechnet;
+  const vortrag23_verrechnet = Math.min(vortrag23, Math.max(kryptoSO_nachFreigrenze, 0));
+  const vortrag23_verbleibend = vortrag23 + Math.max(-kryptoSO_nachFreigrenze, 0) - vortrag23_verrechnet;
 
   // Summe der inländischen Einkünfte
   const summe_einkuenfte_inland =
@@ -189,7 +207,7 @@ export function berechneJahresdaten(
   const kapitalOverride = daten.kapitalertraege_gesamt;
   const sonstigeKapManual = daten.estg_20;
 
-  const kapitalBruttoFuerBerechnung = kapitalBanken > 0
+  const kapitalBruttoFuerBerechnung = bankenNormal.length > 0
     ? (kapitalBanken - invStgBanken + zugeflossenBanken)
     : kapitalOverride;
 
@@ -234,8 +252,8 @@ export function berechneJahresdaten(
 
   // === Progressionsvorbehalt (§ 32b EStG) ===
 
-  const auslandBrutto = daten.auslandseinkuenfte;
-  const zvE_ausland = Math.floor(Math.max(auslandBrutto - daten.auslands_sv, 0));
+  // Progressionsvorbehalt: steuerfreier Arbeitslohn geht ungekürzt ein (SV wird separat als Sonderausgabe berücksichtigt)
+  const zvE_ausland = Math.floor(daten.auslandseinkuenfte);
 
   const zvE_fuerSatz_ohneKap = zvE_inland + zvE_ausland;
   const zvE_fuerSatz_mitKap = zvE_inland + Math.floor(steuerpflichtigeKapErtr) + zvE_ausland;
@@ -283,16 +301,19 @@ export function berechneJahresdaten(
   // Anrechenbare ausländische Steuer (§ 34c)
   const auslandssteuer = daten.anrechenbare_auslandssteuer;
 
-  // === Soli auf ESt ===
+  // === Gesamtsteuerlast ===
+
+  const estNachErmaessigung = Math.max(estAufInland - haushaltsnachlass - handwerkerNachlass - auslandssteuer, 0);
+
+  // === Soli auf ESt (Bemessungsgrundlage = festzusetzende ESt, also NACH §35a und §34c) ===
 
   const soli_freigrenze = verheiratet ? config.soli_freigrenze * 2 : config.soli_freigrenze;
-  const soliBemessung = Math.max(estAufInland - auslandssteuer, 0);
-  const soliAufEst = berechneSoli(soliBemessung, soli_freigrenze);
+  const soliAufEst = berechneSoli(estNachErmaessigung, soli_freigrenze);
 
-  // === Kirchensteuer ===
+  // === Kirchensteuer (ebenfalls auf festzusetzende ESt) ===
 
   const kirchensteuer = config.kirchensteuerSatz > 0
-    ? Math.round(estAufInland * config.kirchensteuerSatz)
+    ? Math.round(estNachErmaessigung * config.kirchensteuerSatz)
     : 0;
 
   const kirchensteuerKapital = guenstigerGreift ? 0 : daten.kirchensteuer_kapital;
@@ -302,10 +323,6 @@ export function berechneJahresdaten(
   const zinsen = daten.nachzahlungszinsen;
   const verspaetung = daten.verspaetungszuschlag;
   const summeNebenkosten = zinsen + verspaetung;
-
-  // === Gesamtsteuerlast ===
-
-  const estNachErmaessigung = Math.max(estAufInland - haushaltsnachlass - handwerkerNachlass - auslandssteuer, 0);
 
   const steuerGesamt =
     estNachErmaessigung
@@ -344,12 +361,12 @@ export function berechneJahresdaten(
     sonderausgaben,
     einkuenfte_arbeit: Math.floor(brutto - werbungskosten) - sonderausgaben,
 
-    estg_23_brutto: kryptoSO,
-    estg_23_vortrag_verrechnet: vortrag23_verrechnet,
-    estg_23_steuerpflichtig: kryptoSO_stpfl,
+    estg_23_brutto: Math.round(kryptoSO),
+    estg_23_vortrag_verrechnet: Math.round(vortrag23_verrechnet),
+    estg_23_steuerpflichtig: Math.round(kryptoSO_stpfl),
     estg_23_vortrag_ende: vortrag23_verbleibend,
 
-    estg_22: sonstigeSO,
+    estg_22: Math.round(sonstigeSO),
 
     estg_20_brutto: sonstigeKap,
     estg_20_vortrag_verrechnet: vortrag20_verrechnet,
@@ -367,6 +384,8 @@ export function berechneJahresdaten(
     effektiver_steuersatz: Math.round(effektiverSatz * 10000) / 100,
 
     einkommensteuer: Math.round(estAufInland),
+    solidaritaetszuschlag: soliAufEst,
+    kirchensteuer,
     steuerlast_gesamt: steuerGesamt,
     gezahlte_steuer: gezahlt,
     erstattung_nachzahlung: differenz,
@@ -413,11 +432,15 @@ export function berechne(eingabe: SteuerEingabe): SteuerErgebnis {
     pv_an: eingabe.pflegeversicherung,
     kv_ag: 0,
     pv_ag: 0,
+    erstattete_rv: 0,
+    beitragsrueckerstattung_kv: 0,
     weitere_versicherungen: eingabe.sonstige_versicherungen,
     spenden: eingabe.spenden,
     fahrt_tage: eingabe.arbeitstage,
     entfernung_km: eingabe.entfernung_km,
     homeoffice_tage: eingabe.homeoffice_tage,
+    verpflegungsmehraufwand: 0,
+    verpflegung_stfr_erstattung: 0,
     arbeitsmittel: eingabe.arbeitsmittel,
     sonstige_werbungskosten: 0,
     haushaltsnahe_dienstleistungen: eingabe.haushaltsnahe_dienstleistungen,
@@ -430,20 +453,17 @@ export function berechne(eingabe: SteuerEingabe): SteuerErgebnis {
     erstattung_bescheid: null,
     nachzahlungszinsen: 0,
     verspaetungszuschlag: 0,
-    bescheid_einkuenfte: null,
-    bescheid_sonderausgaben: null,
-    bescheid_zvE: null,
-    bescheid_est: null,
-    bescheid_soli: null,
   };
 
   const config = getConfig(eingabe.jahr);
   const voll = berechneJahresdaten(daten, []);
 
+  // KiSt: config.kirchensteuerSatz ist 0, also berechneJahresdaten liefert KiSt=0.
+  // Hier berechnen wir KiSt auf Basis von eingabe.kirchensteuerSatz und addieren sie zur Gesamtlast.
   const kirchensteuer = eingabe.kirchensteuerSatz > 0
     ? Math.round(voll.einkommensteuer * eingabe.kirchensteuerSatz)
     : 0;
-  const steuerGesamt = voll.steuerlast_gesamt + kirchensteuer;
+  const steuerGesamt = voll.steuerlast_gesamt - voll.kirchensteuer + kirchensteuer;
   const differenz = voll.gezahlte_steuer - steuerGesamt;
 
   const hoTage = Math.min(eingabe.homeoffice_tage, config.homeofficePauschaleMaxTage);
@@ -463,10 +483,7 @@ export function berechne(eingabe: SteuerEingabe): SteuerErgebnis {
     sonderausgaben: voll.sonderausgaben,
     zvE: voll.zvE_inland,
     einkommensteuer: voll.einkommensteuer,
-    solidaritaetszuschlag: berechneSoli(
-      voll.einkommensteuer,
-      eingabe.verheiratet ? config.soli_freigrenze * 2 : config.soli_freigrenze,
-    ),
+    solidaritaetszuschlag: voll.solidaritaetszuschlag,
     kirchensteuer,
     kapitalertragsteuer: voll.kapitalertragsteuer,
     soli_auf_kapital: voll.soli_kapital,
