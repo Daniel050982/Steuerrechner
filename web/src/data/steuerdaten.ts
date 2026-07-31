@@ -1,4 +1,5 @@
 import type { BescheidDaten } from './bescheid';
+import { createEmptyBescheid } from './bescheid';
 
 export interface DetailPosten {
   name: string;
